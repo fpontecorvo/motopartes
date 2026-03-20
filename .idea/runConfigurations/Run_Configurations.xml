@@ -1,0 +1,20 @@
+<project version="4">
+  <component name="RunManager">
+    <configuration name="Run API" type="JetRunConfigurationType">
+      <option name="MAIN_CLASS_NAME" value="org.motopartes.api.MainKt" />
+      <module name="motopartes.api.main" />
+      <shortenClasspath name="NONE" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Run Desktop" type="JetRunConfigurationType">
+      <option name="MAIN_CLASS_NAME" value="org.motopartes.desktop.MainKt" />
+      <module name="motopartes.desktop.main" />
+      <shortenClasspath name="NONE" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+  </component>
+</project>

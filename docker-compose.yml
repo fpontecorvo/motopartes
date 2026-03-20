@@ -1,0 +1,11 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - motopartes-data:/data
+    restart: unless-stopped
+
+volumes:
+  motopartes-data:
