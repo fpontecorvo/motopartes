@@ -23,6 +23,10 @@ import org.motopartes.desktop.chat.ChatScreen
 import org.motopartes.desktop.chat.ChatService
 import org.motopartes.desktop.chat.ChatSettings
 import org.motopartes.desktop.chat.MotopartesTools
+import io.ktor.server.engine.*
+import io.ktor.server.netty.*
+import org.motopartes.api.configurePlugins
+import org.motopartes.api.configureRouting
 import org.motopartes.service.BackupService
 import org.motopartes.service.CsvImportService
 import org.motopartes.service.FinanceService
@@ -31,6 +35,7 @@ import org.motopartes.service.PurchaseService
 import org.motopartes.service.UpdateService
 import org.motopartes.service.VersionInfo
 import java.awt.Desktop
+import kotlin.concurrent.thread
 import java.awt.FileDialog
 import java.awt.Frame
 import java.net.URI
@@ -57,6 +62,19 @@ fun main() {
     // Auto-configure if saved settings exist
     val savedKey = ChatSettings.apiKey
     if (savedKey.isNotBlank()) chatService.configure(savedKey, ChatSettings.provider, ChatSettings.model)
+
+    // Start API server in background thread
+    val apiNow = { org.motopartes.api.now() }
+    thread(isDaemon = true, name = "api-server") {
+        embeddedServer(Netty, port = 8080) {
+            configurePlugins()
+            configureRouting(
+                productRepo, clientRepo, supplierRepo, dollarRateRepo,
+                orderRepo, orderService, purchaseService, financeService,
+                backupService, apiNow
+            )
+        }.start(wait = true)
+    }
 
     val appIcon = AppIconPainter()
 

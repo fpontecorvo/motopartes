@@ -13,6 +13,9 @@ dependencies {
     implementation(libs.kotlinxDatetime)
     implementation(libs.openpdf)
     implementation(libs.koog.agents)
+    implementation(project(":api"))
+    implementation(libs.ktor.server.core)
+    implementation(libs.ktor.server.netty)
 }
 
 compose.desktop {
