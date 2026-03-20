@@ -2,6 +2,29 @@
 
 Sistema de gestion de venta minorista de motopartes. App de escritorio + API REST.
 
+## Instalar Motopartes
+
+No necesitas Java, Gradle ni nada extra. Solo descargar el instalador y ejecutarlo.
+
+### macOS
+1. Descargar `Motopartes-1.0.0.dmg` desde [Releases](https://github.com/fpontecorvo/motopartes/releases)
+2. Abrir el `.dmg`
+3. Arrastrar **Motopartes** a la carpeta **Aplicaciones**
+4. Abrir desde Aplicaciones
+
+### Windows
+1. Descargar `Motopartes-1.0.0.msi` desde [Releases](https://github.com/fpontecorvo/motopartes/releases)
+2. Ejecutar el `.msi`
+3. Siguiente → Siguiente → Instalar
+4. Abrir **Motopartes** desde el menu de inicio
+
+### Linux (Debian/Ubuntu)
+1. Descargar `motopartes_1.0.0_amd64.deb` desde [Releases](https://github.com/fpontecorvo/motopartes/releases)
+2. `sudo dpkg -i motopartes_1.0.0_amd64.deb`
+3. Abrir desde el menu de aplicaciones o ejecutar `motopartes`
+
+---
+
 ## Tecnologias
 
 - **Kotlin 2.3** / JVM 23
@@ -24,15 +47,44 @@ buildSrc/  → Convention plugins de Gradle
 - **JDK 23** ([Eclipse Temurin](https://adoptium.net/temurin/releases/) recomendado)
 - **Git**
 
-En macOS:
+### macOS
+
 ```bash
+# Instalar
 brew install --cask temurin@23
+
+# Configurar JAVA_HOME (agregar a ~/.zshrc para que persista)
 export JAVA_HOME=$(/usr/libexec/java_home -v 23)
 ```
 
-En Windows:
-- Descargar e instalar JDK 23 de [Adoptium](https://adoptium.net/temurin/releases/)
-- Configurar `JAVA_HOME` en variables de entorno
+### Windows
+
+1. Descargar e instalar JDK 23 de [Adoptium](https://adoptium.net/temurin/releases/)
+2. Abrir **Configuracion** → **Sistema** → **Acerca de** → **Configuracion avanzada del sistema** → **Variables de entorno**
+3. En "Variables del sistema", click **Nueva**:
+   - Nombre: `JAVA_HOME`
+   - Valor: `C:\Program Files\Eclipse Adoptium\jdk-23` (ajustar si la ruta es diferente)
+4. Editar la variable `Path` y agregar: `%JAVA_HOME%\bin`
+5. Abrir una terminal nueva y verificar:
+```cmd
+java -version
+echo %JAVA_HOME%
+```
+
+### Linux (Debian/Ubuntu)
+
+```bash
+# Instalar
+sudo apt install temurin-23-jdk
+
+# O descargar manualmente de Adoptium y extraer en /opt/
+# Configurar JAVA_HOME (agregar a ~/.bashrc para que persista)
+export JAVA_HOME=/usr/lib/jvm/temurin-23-jdk-amd64
+export PATH=$JAVA_HOME/bin:$PATH
+
+# Verificar
+java -version
+```
 
 ## Desarrollo
 
