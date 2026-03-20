@@ -19,6 +19,10 @@ import androidx.compose.ui.window.rememberWindowState
 import org.motopartes.db.DatabaseFactory
 import org.motopartes.desktop.screen.*
 import org.motopartes.repository.*
+import org.motopartes.desktop.chat.ChatScreen
+import org.motopartes.desktop.chat.ChatService
+import org.motopartes.desktop.chat.ChatSettings
+import org.motopartes.desktop.chat.MotopartesTools
 import org.motopartes.service.BackupService
 import org.motopartes.service.FinanceService
 import org.motopartes.service.OrderService
@@ -46,6 +50,11 @@ fun main() {
     val purchaseService = PurchaseService(productRepo, financeService, supplierRepo)
     val backupService = BackupService()
     val updateService = UpdateService(UpdateService.APP_VERSION)
+    val chatTools = MotopartesTools(productRepo, clientRepo, supplierRepo, dollarRateRepo, orderRepo, orderService, financeService, purchaseService)
+    val chatService = ChatService(chatTools)
+    // Auto-configure if saved settings exist
+    val savedKey = ChatSettings.apiKey
+    if (savedKey.isNotBlank()) chatService.configure(savedKey, ChatSettings.provider, ChatSettings.model)
 
     val appIcon = AppIconPainter()
 
@@ -57,7 +66,7 @@ fun main() {
             state = windowState,
             icon = appIcon
         ) {
-            App(productRepo, clientRepo, supplierRepo, dollarRateRepo, orderRepo, orderService, purchaseService, financeService, backupService, updateService)
+            App(productRepo, clientRepo, supplierRepo, dollarRateRepo, orderRepo, orderService, purchaseService, financeService, backupService, updateService, chatService)
         }
     }
 }
@@ -73,7 +82,8 @@ fun App(
     purchaseService: PurchaseService,
     financeService: FinanceService,
     backupService: BackupService,
-    updateService: UpdateService
+    updateService: UpdateService,
+    chatService: ChatService
 ) {
     var currentScreen by remember { mutableStateOf(Screen.PRODUCTS) }
     var snackMessage by remember { mutableStateOf<String?>(null) }
@@ -237,6 +247,7 @@ fun App(
                             Screen.FINANCE -> FinanceScreen(financeService, clientRepo, supplierRepo)
                             Screen.SUPPLIER -> SupplierScreen(supplierRepo)
                             Screen.DOLLAR_RATE -> DollarRateScreen(dollarRateRepo)
+                            Screen.CHAT -> ChatScreen(chatService)
                         }
                     }
                 }

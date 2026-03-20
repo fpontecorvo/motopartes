@@ -9,7 +9,7 @@ object DatabaseFactory {
 
     private val allTables = arrayOf(
         Products, Clients, Suppliers, DollarRates,
-        Orders, OrderItems, FinancialMovements
+        Orders, OrderItems, FinancialMovements, AppSettings
     )
 
     fun init() {

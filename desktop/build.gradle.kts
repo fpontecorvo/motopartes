@@ -12,6 +12,7 @@ dependencies {
     implementation(libs.kotlinxCoroutines)
     implementation(libs.kotlinxDatetime)
     implementation(libs.openpdf)
+    implementation(libs.koog.agents)
 }
 
 compose.desktop {

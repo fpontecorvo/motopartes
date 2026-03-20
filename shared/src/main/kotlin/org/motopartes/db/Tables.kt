@@ -1,6 +1,7 @@
 package org.motopartes.db
 
 import org.jetbrains.exposed.dao.id.LongIdTable
+import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.kotlin.datetime.date
 import org.jetbrains.exposed.sql.kotlin.datetime.datetime
 import org.motopartes.model.Currency
@@ -47,6 +48,12 @@ object OrderItems : LongIdTable("order_items") {
     val productId = reference("product_id", Products)
     val quantity = integer("quantity")
     val unitPriceArs = decimal("unit_price_ars", 12, 2)
+}
+
+object AppSettings : Table("app_settings") {
+    val key = varchar("key", 100)
+    val value = text("value")
+    override val primaryKey = PrimaryKey(key)
 }
 
 object FinancialMovements : LongIdTable("financial_movements") {

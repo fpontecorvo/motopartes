@@ -12,4 +12,5 @@ enum class Screen(val title: String, val icon: ImageVector) {
     FINANCE("Finanzas", Icons.Default.AccountBalance),
     SUPPLIER("Proveedor", Icons.Default.Store),
     DOLLAR_RATE("Cotización", Icons.Default.CurrencyExchange),
+    CHAT("Chat", Icons.Default.SmartToy),
 }
