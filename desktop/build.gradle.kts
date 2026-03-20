@@ -19,7 +19,11 @@ compose.desktop {
     application {
         mainClass = "org.motopartes.desktop.MainKt"
 
+        jvmArgs("--add-opens", "java.desktop/sun.awt=ALL-UNNAMED")
+        buildTypes.release.proguard { isEnabled = false }
+
         nativeDistributions {
+            modules("java.sql", "java.naming", "jdk.unsupported")
             targetFormats(
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg,
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
