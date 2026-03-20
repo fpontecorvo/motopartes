@@ -21,7 +21,7 @@ buildSrc/  → Convention plugins de Gradle
 
 ## Requisitos para desarrollo
 
-- **JDK 23** ([Eclipse Temurin](https://adoptium.net/) recomendado)
+- **JDK 23** ([Eclipse Temurin](https://adoptium.net/temurin/releases/) recomendado)
 - **Git**
 
 En macOS:
@@ -31,7 +31,7 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 23)
 ```
 
 En Windows:
-- Descargar e instalar JDK 23 de [Adoptium](https://adoptium.net/)
+- Descargar e instalar JDK 23 de [Adoptium](https://adoptium.net/temurin/releases/)
 - Configurar `JAVA_HOME` en variables de entorno
 
 ## Desarrollo
