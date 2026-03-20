@@ -24,6 +24,7 @@ import org.motopartes.desktop.chat.ChatService
 import org.motopartes.desktop.chat.ChatSettings
 import org.motopartes.desktop.chat.MotopartesTools
 import org.motopartes.service.BackupService
+import org.motopartes.service.CsvImportService
 import org.motopartes.service.FinanceService
 import org.motopartes.service.OrderService
 import org.motopartes.service.PurchaseService
@@ -50,7 +51,8 @@ fun main() {
     val purchaseService = PurchaseService(productRepo, financeService, supplierRepo)
     val backupService = BackupService()
     val updateService = UpdateService(UpdateService.APP_VERSION)
-    val chatTools = MotopartesTools(productRepo, clientRepo, supplierRepo, dollarRateRepo, orderRepo, orderService, financeService, purchaseService)
+    val csvImportService = CsvImportService(productRepo, dollarRateRepo)
+    val chatTools = MotopartesTools(productRepo, clientRepo, supplierRepo, dollarRateRepo, orderRepo, orderService, financeService, purchaseService, csvImportService)
     val chatService = ChatService(chatTools)
     // Auto-configure if saved settings exist
     val savedKey = ChatSettings.apiKey

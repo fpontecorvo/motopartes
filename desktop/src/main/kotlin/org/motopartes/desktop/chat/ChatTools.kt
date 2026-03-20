@@ -9,6 +9,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.motopartes.model.*
 import org.motopartes.repository.*
+import org.motopartes.service.CsvImportService
 import org.motopartes.service.FinanceService
 import org.motopartes.service.OrderService
 import org.motopartes.service.PurchaseService
@@ -34,7 +35,8 @@ class MotopartesTools(
     private val orderRepo: OrderRepository,
     private val orderService: OrderService,
     private val financeService: FinanceService,
-    private val purchaseService: PurchaseService
+    private val purchaseService: PurchaseService,
+    private val csvImportService: CsvImportService
 ) : ToolSet {
 
     // ── Productos ──
@@ -243,5 +245,16 @@ class MotopartesTools(
     fun getSupplier(): String {
         val s = supplierRepo.get() ?: return "No hay proveedor configurado."
         return "Proveedor: ${s.name} | tel: ${s.phone} | deuda: \$${s.balance}"
+    }
+
+    // ── Importacion CSV ──
+
+    @Tool
+    @LLMDescription("Importar o actualizar productos desde contenido CSV. El CSV debe tener header con columnas: code/codigo, name/nombre, purchasePrice/precio/costo, purchaseCurrency/moneda (USD o ARS). Columnas opcionales: description/descripcion, salePrice/precioventa, stock. Productos existentes se actualizan por codigo, nuevos se crean.")
+    fun importProducts(@LLMDescription("Contenido CSV completo con header y filas de datos") csvContent: String): String {
+        val result = csvImportService.import(csvContent)
+        val msg = result.summary()
+        return if (result.errors.isEmpty()) msg
+        else "$msg\nErrores:\n${result.errors.joinToString("\n")}"
     }
 }

@@ -123,6 +123,51 @@ gradlew.bat :desktop:createDistributable
 sudo dpkg -i desktop/build/compose/binaries/main/deb/motopartes_1.0.0_amd64.deb
 ```
 
+## Chat AI (Asistente integrado)
+
+La app incluye un chat con IA que permite operar el negocio en lenguaje natural. Ejemplos:
+- "Listame los productos con stock bajo"
+- "Cuanto debe el cliente Juan Perez?"
+- "Crea un pedido para el cliente 1 con 3 del producto 7"
+- "Pone el dolar a 1500"
+
+### Configurar API Key
+
+En la app: **Chat** (nav rail) → **Configurar** (icono engranaje) → elegir provider, modelo y pegar API key.
+
+### Providers soportados
+
+| Provider | Modelos | Gratis | Donde obtener API Key |
+|----------|---------|--------|-----------------------|
+| **Google** | Gemini 2.5 Flash, Gemini 2.5 Pro | Si (15 req/min) | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+| **Anthropic** | Claude Sonnet 4.5, Claude Opus 4.5 | No | [console.anthropic.com](https://console.anthropic.com/) |
+| **OpenAI** | GPT-4o, GPT-4o mini | No | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+
+### Obtener API Key gratis (Google Gemini)
+
+1. Ir a [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+2. Iniciar sesion con una cuenta de Google
+3. Click en **"Create API Key"**
+4. Copiar la key generada (empieza con `AIza...`)
+5. En Motopartes: Chat → Configurar → Provider: **Google** → Modelo: **gemini-2.5-flash** → pegar la key → Guardar
+
+El tier gratuito de Gemini 2.5 Flash permite 15 requests por minuto y 1500 por dia, suficiente para uso normal.
+
+### Importar productos por CSV
+
+Desde la UI: **Productos** → **Importar** → seleccionar archivo `.csv`
+
+Desde el chat: pegar el contenido CSV y escribir "importa estos productos"
+
+Formato CSV (header flexible, separador coma o punto y coma):
+```csv
+codigo,nombre,precio,moneda
+RUL-010,Ruleman 6210,5.00,USD
+CAD-010,Cadena 530H,32000,ARS
+```
+
+Columnas reconocidas: `code/codigo`, `name/nombre`, `purchasePrice/precio/costo`, `purchaseCurrency/moneda` (USD/ARS), `description/descripcion`, `salePrice/precioventa`, `stock`. Si no se incluye precio de venta, se calcula automaticamente (costo + 30%).
+
 ## Docker (solo API)
 
 La API se puede correr en Docker. La app de escritorio no se dockeriza porque requiere interfaz grafica.

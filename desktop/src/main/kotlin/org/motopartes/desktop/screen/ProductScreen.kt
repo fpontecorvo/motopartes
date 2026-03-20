@@ -16,7 +16,13 @@ import org.motopartes.model.Currency
 import org.motopartes.model.Product
 import org.motopartes.repository.DollarRateRepository
 import org.motopartes.repository.ProductRepository
+import org.motopartes.service.CsvImportService
+import org.motopartes.service.ImportResult
+import java.awt.FileDialog
+import java.awt.Frame
 import java.math.BigDecimal
+import kotlin.io.path.Path
+import kotlin.io.path.readText
 
 @Composable
 fun ProductScreen(productRepo: ProductRepository, dollarRateRepo: DollarRateRepository) {
@@ -29,6 +35,8 @@ fun ProductScreen(productRepo: ProductRepository, dollarRateRepo: DollarRateRepo
     var currentPage by remember { mutableStateOf(0) }
     var pageSize by remember { mutableStateOf(10) }
     val dollarRate = remember { dollarRateRepo.getLatest()?.rate }
+    val csvImportService = remember { CsvImportService(productRepo, dollarRateRepo) }
+    var importResult by remember { mutableStateOf<ImportResult?>(null) }
 
     fun refresh() {
         products = if (searchQuery.isBlank()) productRepo.findAll() else productRepo.search(searchQuery)
@@ -47,6 +55,19 @@ fun ProductScreen(productRepo: ProductRepository, dollarRateRepo: DollarRateRepo
             }
             SearchField(searchQuery, { searchQuery = it; refresh() }, Modifier.width(250.dp))
             Spacer(Modifier.width(12.dp))
+            FilledTonalButton(onClick = {
+                val dialog = FileDialog(null as Frame?, "Importar CSV", FileDialog.LOAD)
+                dialog.setFilenameFilter { _, name -> name.endsWith(".csv") || name.endsWith(".txt") }
+                dialog.isVisible = true
+                if (dialog.file != null) {
+                    val content = Path(dialog.directory, dialog.file).readText()
+                    importResult = csvImportService.import(content)
+                    refresh()
+                }
+            }) {
+                Icon(Icons.Default.Upload, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Importar")
+            }
+            Spacer(Modifier.width(8.dp))
             FilledTonalButton(onClick = { editingProduct = null; showForm = true }) {
                 Icon(Icons.Default.Add, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Nuevo")
             }
@@ -115,6 +136,27 @@ fun ProductScreen(productRepo: ProductRepository, dollarRateRepo: DollarRateRepo
         StockDialog(p, onDismiss = { showStockDialog = null }, onConfirm = { delta ->
             productRepo.updateStock(p.id, delta); showStockDialog = null; refresh()
         })
+    }
+    importResult?.let { result ->
+        AlertDialog(
+            onDismissRequest = { importResult = null },
+            title = { Text("Resultado de importacion") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(result.summary(), style = MaterialTheme.typography.titleMedium)
+                    if (result.created > 0) Text("${result.created} productos creados", color = MaterialTheme.colorScheme.primary)
+                    if (result.updated > 0) Text("${result.updated} productos actualizados", color = MaterialTheme.colorScheme.secondary)
+                    if (result.errors.isNotEmpty()) {
+                        Spacer(Modifier.height(4.dp))
+                        Text("Errores:", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                        result.errors.forEach { err ->
+                            Text(err, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { importResult = null }) { Text("Cerrar") } }
+        )
     }
 }
 
