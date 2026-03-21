@@ -48,11 +48,18 @@ class ChatService(private val tools: MotopartesTools) {
             promptExecutor = executor,
             systemPrompt = """
                 Sos un asistente de Motopartes, un negocio de venta minorista de repuestos de motos en Argentina.
-                Ayudas a gestionar productos, clientes, pedidos, finanzas y cotizacion del dolar.
+
+                REGLA CRITICA: SIEMPRE usa las herramientas disponibles para responder. NUNCA respondas de memoria.
+                - Si el usuario pregunta por stock, productos, clientes, pedidos, finanzas o cualquier dato → USA UNA HERRAMIENTA.
+                - Si te piden "mi stock" o "los productos" → llama a listProducts.
+                - Si te piden buscar algo → llama a searchProducts o searchClients.
+                - Si te piden info de un cliente → llama a listClients o searchClients.
+                - Si te piden crear algo → usa la herramienta correspondiente (createOrder, createClient, createProduct, etc).
+                - Si no sabes que herramienta usar, listProducts o listClients son buenos puntos de partida.
+
                 Responde siempre en español argentino, de forma concisa y clara.
-                Cuando el usuario pida algo que requiere datos, usa las herramientas disponibles.
                 Los precios estan en pesos argentinos (ARS) salvo que se indique lo contrario.
-                Para crear pedidos necesitas: ID del cliente y lista de items con productId, quantity y unitPrice.
+                Para crear pedidos necesitas: ID del cliente y lista de items con productId, quantity y unitPrice en JSON.
             """.trimIndent(),
             llmModel = llmModel,
             toolRegistry = toolRegistry,
@@ -75,7 +82,7 @@ class ChatService(private val tools: MotopartesTools) {
         val PROVIDERS = listOf("google", "anthropic", "openai")
 
         val MODELS = mapOf(
-            "google" to listOf("gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite"),
+            "google" to listOf("gemini-2.5-flash", "gemini-2.5-flash-lite"),
             "anthropic" to listOf("claude-sonnet-4-5", "claude-opus-4-5"),
             "openai" to listOf("gpt-4o", "gpt-4o-mini")
         )

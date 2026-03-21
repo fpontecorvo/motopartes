@@ -263,7 +263,7 @@ fun App(
                             Screen.PRODUCTS -> ProductScreen(productRepo, dollarRateRepo)
                             Screen.CLIENTS -> ClientScreen(clientRepo)
                             Screen.ORDERS -> OrderScreen(orderRepo, orderService, productRepo, clientRepo, dollarRateRepo)
-                            Screen.PURCHASES -> PurchaseScreen(purchaseService, productRepo)
+                            Screen.PURCHASES -> PurchaseScreen(purchaseService, productRepo, dollarRateRepo)
                             Screen.FINANCE -> FinanceScreen(financeService, clientRepo, supplierRepo)
                             Screen.SUPPLIER -> SupplierScreen(supplierRepo)
                             Screen.DOLLAR_RATE -> DollarRateScreen(dollarRateRepo)

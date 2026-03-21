@@ -12,6 +12,7 @@ import org.motopartes.repository.*
 import org.motopartes.service.CsvImportService
 import org.motopartes.service.FinanceService
 import org.motopartes.service.OrderService
+import org.motopartes.service.PurchaseItem
 import org.motopartes.service.PurchaseService
 import java.math.BigDecimal
 
@@ -256,5 +257,25 @@ class MotopartesTools(
         val msg = result.summary()
         return if (result.errors.isEmpty()) msg
         else "$msg\nErrores:\n${result.errors.joinToString("\n")}"
+    }
+
+    @Tool
+    @LLMDescription("Importar factura de compra del proveedor desde CSV. Formato: Codigo,Articulo,Cantidad,Precio Unitario,Importe. Incrementa stock y registra la deuda con el proveedor usando los precios reales de la factura (no los de lista).")
+    fun importPurchaseInvoice(@LLMDescription("Contenido CSV de la factura de compra") csvContent: String): String {
+        val invoiceResult = csvImportService.importPurchaseInvoice(csvContent)
+        if (invoiceResult.items.isEmpty() && invoiceResult.missingProducts.isEmpty()) {
+            return "No se pudieron importar items.${if (invoiceResult.errors.isNotEmpty()) "\nErrores: ${invoiceResult.errors.joinToString(", ")}" else ""}"
+        }
+        val msgs = mutableListOf<String>()
+        if (invoiceResult.missingProducts.isNotEmpty()) {
+            msgs.add("${invoiceResult.missingProducts.size} productos no encontrados: ${invoiceResult.missingProducts.joinToString(", ") { it.code }}")
+        }
+        if (invoiceResult.items.isNotEmpty()) {
+            val result = purchaseService.registerPurchase(invoiceResult.items, now())
+            msgs.add("Compra registrada: ${result.summary()}")
+            if (result.errors.isNotEmpty()) msgs.add("Errores: ${result.errors.joinToString(", ")}")
+        }
+        if (invoiceResult.errors.isNotEmpty()) msgs.add("Advertencias CSV: ${invoiceResult.errors.joinToString(", ")}")
+        return msgs.joinToString("\n")
     }
 }

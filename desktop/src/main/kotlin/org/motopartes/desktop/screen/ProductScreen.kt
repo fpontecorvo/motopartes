@@ -12,6 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.motopartes.desktop.component.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.motopartes.model.Currency
 import org.motopartes.model.Product
 import org.motopartes.repository.DollarRateRepository
@@ -37,6 +40,8 @@ fun ProductScreen(productRepo: ProductRepository, dollarRateRepo: DollarRateRepo
     val dollarRate = remember { dollarRateRepo.getLatest()?.rate }
     val csvImportService = remember { CsvImportService(productRepo, dollarRateRepo) }
     var importResult by remember { mutableStateOf<ImportResult?>(null) }
+    var isImporting by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     fun refresh() {
         products = if (searchQuery.isBlank()) productRepo.findAll() else productRepo.search(searchQuery)
@@ -61,11 +66,21 @@ fun ProductScreen(productRepo: ProductRepository, dollarRateRepo: DollarRateRepo
                 dialog.isVisible = true
                 if (dialog.file != null) {
                     val content = Path(dialog.directory, dialog.file).readText()
-                    importResult = csvImportService.import(content)
-                    refresh()
+                    isImporting = true
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) { csvImportService.import(content) }
+                        importResult = result
+                        isImporting = false
+                        refresh()
+                    }
                 }
-            }) {
-                Icon(Icons.Default.Upload, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Importar")
+            }, enabled = !isImporting) {
+                if (isImporting) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onSurface)
+                } else {
+                    Icon(Icons.Default.Upload, null, Modifier.size(18.dp))
+                }
+                Spacer(Modifier.width(6.dp)); Text(if (isImporting) "Importando..." else "Importar")
             }
             Spacer(Modifier.width(8.dp))
             FilledTonalButton(onClick = { editingProduct = null; showForm = true }) {
@@ -138,24 +153,41 @@ fun ProductScreen(productRepo: ProductRepository, dollarRateRepo: DollarRateRepo
         })
     }
     importResult?.let { result ->
+        val hasErrors = result.errors.isNotEmpty()
+        val icon = if (hasErrors) Icons.Default.Warning else Icons.Default.CheckCircle
+        val iconColor = if (hasErrors) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+
         AlertDialog(
             onDismissRequest = { importResult = null },
-            title = { Text("Resultado de importacion") },
+            icon = { Icon(icon, null, Modifier.size(40.dp), tint = iconColor) },
+            title = { Text(if (hasErrors) "Importacion con advertencias" else "Importacion exitosa") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(result.summary(), style = MaterialTheme.typography.titleMedium)
-                    if (result.created > 0) Text("${result.created} productos creados", color = MaterialTheme.colorScheme.primary)
-                    if (result.updated > 0) Text("${result.updated} productos actualizados", color = MaterialTheme.colorScheme.secondary)
+                    if (result.created > 0) {
+                        Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)) {
+                            Text("  ${result.created} productos creados  ", Modifier.padding(horizontal = 12.dp, vertical = 6.dp), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                    if (result.updated > 0) {
+                        Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)) {
+                            Text("  ${result.updated} productos actualizados  ", Modifier.padding(horizontal = 12.dp, vertical = 6.dp), color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                    if (result.skipped > 0) {
+                        Text("${result.skipped} filas omitidas (categorias/sin precio)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     if (result.errors.isNotEmpty()) {
                         Spacer(Modifier.height(4.dp))
                         Text("Errores:", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                        result.errors.forEach { err ->
-                            Text(err, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        LazyColumn(Modifier.heightIn(max = 150.dp)) {
+                            items(result.errors) { err ->
+                                Text(err, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                            }
                         }
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { importResult = null }) { Text("Cerrar") } }
+            confirmButton = { FilledTonalButton(onClick = { importResult = null }) { Text("Cerrar") } }
         )
     }
 }
