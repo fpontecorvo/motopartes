@@ -44,13 +44,13 @@ compose.desktop {
 
             macOS {
                 bundleID = "org.motopartes.desktop"
-                iconFile.set(project.file("src/main/resources/icon.png"))
+                iconFile.set(project.file("src/main/resources/icon.icns"))
             }
 
             windows {
                 menuGroup = "Motopartes"
                 upgradeUuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-                iconFile.set(project.file("src/main/resources/icon.png"))
+                iconFile.set(project.file("src/main/resources/icon.ico"))
                 perUserInstall = true
                 shortcut = true
             }
