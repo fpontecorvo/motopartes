@@ -14,7 +14,7 @@ buildSrc/  → Convention plugins (kotlin-jvm)
 
 ## Build & Run
 ```bash
-export JAVA_HOME=$(/usr/libexec/java_home -v 23)
+export JAVA_HOME=$(/usr/libexec/java_home -v 25)
 ./gradlew :shared:test         # Tests del módulo shared
 ./gradlew :desktop:run         # Ejecutar la app desktop
 ./gradlew :api:run             # Ejecutar la API REST (puerto 8080)

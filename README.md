@@ -44,26 +44,26 @@ buildSrc/  → Convention plugins de Gradle
 
 ## Requisitos para desarrollo
 
-- **JDK 23** ([Eclipse Temurin](https://adoptium.net/temurin/releases/) recomendado)
+- **JDK 25** ([Eclipse Temurin](https://adoptium.net/temurin/releases/) recomendado)
 - **Git**
 
 ### macOS
 
 ```bash
 # Instalar
-brew install --cask temurin@23
+brew install --cask temurin@25
 
 # Configurar JAVA_HOME (agregar a ~/.zshrc para que persista)
-export JAVA_HOME=$(/usr/libexec/java_home -v 23)
+export JAVA_HOME=$(/usr/libexec/java_home -v 25)
 ```
 
 ### Windows
 
-1. Descargar e instalar JDK 23 de [Adoptium](https://adoptium.net/temurin/releases/)
+1. Descargar e instalar JDK 25 de [Adoptium](https://adoptium.net/temurin/releases/)
 2. Abrir **Configuracion** → **Sistema** → **Acerca de** → **Configuracion avanzada del sistema** → **Variables de entorno**
 3. En "Variables del sistema", click **Nueva**:
    - Nombre: `JAVA_HOME`
-   - Valor: `C:\Program Files\Eclipse Adoptium\jdk-23` (ajustar si la ruta es diferente)
+   - Valor: `C:\Program Files\Eclipse Adoptium\jdk-25` (ajustar si la ruta es diferente)
 4. Editar la variable `Path` y agregar: `%JAVA_HOME%\bin`
 5. Abrir una terminal nueva y verificar:
 ```cmd
@@ -75,11 +75,11 @@ echo %JAVA_HOME%
 
 ```bash
 # Instalar
-sudo apt install temurin-23-jdk
+sudo apt install temurin-25-jdk
 
 # O descargar manualmente de Adoptium y extraer en /opt/
 # Configurar JAVA_HOME (agregar a ~/.bashrc para que persista)
-export JAVA_HOME=/usr/lib/jvm/temurin-23-jdk-amd64
+export JAVA_HOME=/usr/lib/jvm/temurin-25-jdk-amd64
 export PATH=$JAVA_HOME/bin:$PATH
 
 # Verificar
@@ -152,7 +152,7 @@ El instalador incluye el JRE embebido — el usuario final **no necesita instala
 ### Windows
 
 Requisitos para buildear:
-1. **JDK 23** instalado
+1. **JDK 25** instalado
 2. **WiX Toolset v3** instalado ([wixtoolset.org](https://wixtoolset.org))
 
 ```bash

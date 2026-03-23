@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 23
+          java-version: 25
       - name: Build DMG
         run: ./gradlew :desktop:packageDmg --no-daemon
       - uses: actions/upload-artifact@v4
@@ -28,7 +28,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 23
+          java-version: 25
       - name: Build MSI
         run: ./gradlew.bat :desktop:packageMsi --no-daemon
       - uses: actions/upload-artifact@v4
@@ -43,7 +43,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 23
+          java-version: 25
       - name: Build DEB
         run: ./gradlew :desktop:packageDeb --no-daemon
       - uses: actions/upload-artifact@v4

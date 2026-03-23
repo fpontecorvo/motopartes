@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM eclipse-temurin:23-jdk AS build
+FROM eclipse-temurin:25-jdk AS build
 
 WORKDIR /app
 COPY gradle/ gradle/
@@ -14,7 +14,7 @@ RUN mkdir -p desktop && touch desktop/build.gradle.kts
 RUN chmod +x gradlew && ./gradlew :api:installDist --no-daemon
 
 # Stage 2: Runtime
-FROM eclipse-temurin:23-jre
+FROM eclipse-temurin:25-jre
 
 WORKDIR /app
 COPY --from=build /app/api/build/install/api/ ./
