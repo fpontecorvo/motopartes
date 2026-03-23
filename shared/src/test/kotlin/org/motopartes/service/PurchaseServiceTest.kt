@@ -25,7 +25,7 @@ class PurchaseServiceTest {
     }
 
     private fun createProduct(code: String, stock: Int) = productRepo.insert(
-        Product(code = code, name = "Prod $code", purchasePrice = BigDecimal("100.00"), purchaseCurrency = Currency.ARS, salePrice = BigDecimal("130.00"), stock = stock)
+        Product(code = code, name = "Prod $code", purchasePrice = BigDecimal("100.00"), purchaseCurrency = Currency.ARS, stock = stock)
     )
 
     @Test

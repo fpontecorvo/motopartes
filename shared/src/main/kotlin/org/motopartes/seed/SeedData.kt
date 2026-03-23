@@ -127,12 +127,9 @@ fun main() {
         ProductSeed("ACC-002", "Pedal de freno trasero Honda CG", 5500.00, Currency.ARS, 8),
     )
 
-    val latestRate = dollarRateRepo.getLatest()?.rate
-        ?: error("Cotizacion del dolar no configurada. Cargue una cotizacion antes de ejecutar el seed.")
     val products = productSeeds.map { seed ->
         val purchasePrice = BigDecimal.valueOf(seed.price)
-        val salePrice = Product.defaultSalePrice(purchasePrice, seed.currency, latestRate)
-        productRepo.insert(Product(code = seed.code, name = seed.name, purchasePrice = purchasePrice, purchaseCurrency = seed.currency, salePrice = salePrice, stock = seed.stock))
+        productRepo.insert(Product(code = seed.code, name = seed.name, purchasePrice = purchasePrice, purchaseCurrency = seed.currency, stock = seed.stock))
     }
     println("Productos: ${products.size}")
 
@@ -188,7 +185,9 @@ fun main() {
         val client = clients[Random.nextInt(clients.size)]
         val numItems = Random.nextInt(1, 6)
         val selectedProducts = products.shuffled().take(numItems)
-        val items = selectedProducts.map { Triple(it.id, Random.nextInt(1, 8), it.salePrice) }
+        val latestRate = dollarRateRepo.getLatest()?.rate ?: BigDecimal("1200.00")
+        val markup = BigDecimal("1.30")
+        val items = selectedProducts.map { Triple(it.id, Random.nextInt(1, 8), it.suggestedSalePrice(latestRate, markup, markup)) }
         val day = Random.nextInt(1, 21)
         val hour = Random.nextInt(8, 20)
         val now = LocalDateTime(2026, 3, day, hour, Random.nextInt(0, 60))

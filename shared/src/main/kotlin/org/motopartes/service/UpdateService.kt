@@ -11,7 +11,7 @@ class UpdateService(private val currentVersion: String) {
 
     companion object {
         const val VERSION_URL = "https://raw.githubusercontent.com/fpontecorvo/motopartes/main/version.json"
-        const val APP_VERSION = "1.0.0"
+        val APP_VERSION = org.motopartes.config.Version.NAME
     }
 
     private val json = Json { ignoreUnknownKeys = true }

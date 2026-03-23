@@ -38,7 +38,7 @@ fun Route.productRoutes(productRepo: ProductRepository) {
             val updated = org.motopartes.model.Product(
                 id = id, code = req.code, name = req.name, description = req.description,
                 purchasePrice = req.purchasePrice, purchaseCurrency = req.purchaseCurrency,
-                salePrice = req.salePrice, stock = req.stock
+                stock = req.stock
             )
             productRepo.update(updated)
             call.respond(updated.toResponse())

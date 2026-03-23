@@ -19,9 +19,8 @@ class ProductRepositoryTest {
         code: String = "MOT-001",
         name: String = "Pastilla de freno",
         purchasePrice: BigDecimal = BigDecimal("1500.00"),
-        purchaseCurrency: Currency = Currency.ARS,
-        salePrice: BigDecimal = BigDecimal("1950.00")
-    ) = Product(code = code, name = name, purchasePrice = purchasePrice, purchaseCurrency = purchaseCurrency, salePrice = salePrice)
+        purchaseCurrency: Currency = Currency.ARS
+    ) = Product(code = code, name = name, purchasePrice = purchasePrice, purchaseCurrency = purchaseCurrency)
 
     @Test
     fun `insert and find by id`() {
@@ -33,7 +32,6 @@ class ProductRepositoryTest {
         assertEquals("MOT-001", found.code)
         assertEquals("Pastilla de freno", found.name)
         assertEquals(0, BigDecimal("1500.00").compareTo(found.purchasePrice))
-        assertEquals(0, BigDecimal("1950.00").compareTo(found.salePrice))
     }
 
     @Test
@@ -73,13 +71,12 @@ class ProductRepositoryTest {
     @Test
     fun `update product`() {
         val inserted = repo.insert(sampleProduct())
-        val updated = inserted.copy(name = "Pastilla de freno trasera", purchasePrice = BigDecimal("2000.00"), salePrice = BigDecimal("2600.00"))
+        val updated = inserted.copy(name = "Pastilla de freno trasera", purchasePrice = BigDecimal("2000.00"))
 
         assertTrue(repo.update(updated))
         val found = repo.findById(inserted.id)!!
         assertEquals("Pastilla de freno trasera", found.name)
         assertEquals(0, BigDecimal("2000.00").compareTo(found.purchasePrice))
-        assertEquals(0, BigDecimal("2600.00").compareTo(found.salePrice))
     }
 
     @Test
@@ -122,14 +119,16 @@ class ProductRepositoryTest {
     }
 
     @Test
-    fun `default sale price applies 30 percent markup`() {
-        val salePrice = Product.defaultSalePrice(BigDecimal("1000.00"), Currency.ARS, BigDecimal("1200.00"))
-        assertEquals(0, BigDecimal("1300.00").compareTo(salePrice))
+    fun `suggested sale price with ARS markup`() {
+        val product = sampleProduct(purchasePrice = BigDecimal("1000.00"), purchaseCurrency = Currency.ARS)
+        val price = product.suggestedSalePrice(BigDecimal("1200.00"), BigDecimal("1.30"), BigDecimal("1.40"))
+        assertEquals(0, BigDecimal("1300.00").compareTo(price))
     }
 
     @Test
-    fun `default sale price converts USD and applies markup`() {
-        val salePrice = Product.defaultSalePrice(BigDecimal("10.00"), Currency.USD, BigDecimal("1200.00"))
-        assertEquals(0, BigDecimal("15600.00").compareTo(salePrice)) // 10 * 1200 * 1.30
+    fun `suggested sale price with USD markup`() {
+        val product = sampleProduct(purchasePrice = BigDecimal("10.00"), purchaseCurrency = Currency.USD)
+        val price = product.suggestedSalePrice(BigDecimal("1200.00"), BigDecimal("1.30"), BigDecimal("1.40"))
+        assertEquals(0, BigDecimal("16800.00").compareTo(price)) // 10 * 1200 * 1.40
     }
 }

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "motopartes": {
+      "command": "java",
+      "args": [
+        "-jar",
+        "/ruta/a/motopartes/mcp-server/build/libs/mcp-server-all.jar",
+        "--stdio"
+      ],
+      "env": {
+        "MOTOPARTES_DATA_DIR": "/ruta/a/tu/directorio/datos"
+      }
+    }
+  }
+}

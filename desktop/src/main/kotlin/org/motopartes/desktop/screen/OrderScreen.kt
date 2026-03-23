@@ -2,6 +2,7 @@ package org.motopartes.desktop.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -48,7 +49,8 @@ fun OrderScreen(
     orderService: OrderService,
     productRepo: ProductRepository,
     clientRepo: ClientRepository,
-    dollarRateRepo: DollarRateRepository
+    dollarRateRepo: DollarRateRepository,
+    settingsRepo: org.motopartes.repository.SettingsRepository
 ) {
     var orders by remember { mutableStateOf(orderRepo.findAll()) }
     var showCreate by remember { mutableStateOf(false) }
@@ -64,14 +66,14 @@ fun OrderScreen(
     }
 
     if (showCreate) {
-        EditOrderView(null, clientRepo, productRepo, orderService, orderRepo,
+        EditOrderView(null, clientRepo, productRepo, orderService, orderRepo, settingsRepo, dollarRateRepo,
             onDone = { showCreate = false; refresh() }, onCancel = { showCreate = false })
         return
     }
 
     if (selectedOrder != null) {
         if (selectedOrder!!.status == OrderStatus.CREATED) {
-            EditOrderView(selectedOrder, clientRepo, productRepo, orderService, orderRepo,
+            EditOrderView(selectedOrder, clientRepo, productRepo, orderService, orderRepo, settingsRepo, dollarRateRepo,
                 onDone = { selectedOrder = null; refresh() }, onCancel = { selectedOrder = null })
         } else {
             OrderDetailView(selectedOrder!!, orderRepo, productRepo, clientRepo, orderService,
@@ -83,7 +85,7 @@ fun OrderScreen(
     // Order list
     Column(Modifier.fillMaxSize().padding(24.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Pedidos", style = MaterialTheme.typography.headlineMedium)
+            Text("Ventas", style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.weight(1f))
             FilterChip(selected = statusFilter == null, onClick = { statusFilter = null; refresh() }, label = { Text("Todos") })
             Spacer(Modifier.width(6.dp))
@@ -93,7 +95,7 @@ fun OrderScreen(
             }
             Spacer(Modifier.width(12.dp))
             FilledTonalButton(onClick = { showCreate = true }) {
-                Icon(Icons.Default.Add, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Nuevo Pedido")
+                Icon(Icons.Default.Add, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Nueva Venta")
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -108,7 +110,8 @@ fun OrderScreen(
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
         val pagedOrders = orders.paginate(currentPage, pageSize)
-        LazyColumn(Modifier.weight(1f)) {
+        val listState = rememberLazyListState()
+        LazyColumn(Modifier.weight(1f), state = listState) {
             items(pagedOrders, key = { it.id }) { order ->
                 val clientName = remember(order.clientId) { orderRepo.clientName(order.clientId) ?: "—" }
                 Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.background,
@@ -128,7 +131,7 @@ fun OrderScreen(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
-        org.motopartes.desktop.component.PaginationBar(currentPage, orders.size, pageSize, { currentPage = it }, { pageSize = it; currentPage = 0 })
+        org.motopartes.desktop.component.PaginationBar(currentPage, orders.size, pageSize, { currentPage = it }, { pageSize = it; currentPage = 0 }, listState = listState)
     }
 }
 
@@ -141,12 +144,17 @@ private fun EditOrderView(
     productRepo: ProductRepository,
     orderService: OrderService,
     orderRepo: OrderRepository,
+    settingsRepo: org.motopartes.repository.SettingsRepository,
+    dollarRateRepo: DollarRateRepository,
     onDone: () -> Unit,
     onCancel: () -> Unit
 ) {
     // Triple: Product, quantity, unitPrice
     val clients = remember { clientRepo.findAll() }
     val allProducts = remember { productRepo.findAll() }
+    val dollarRate = remember { dollarRateRepo.getLatest()?.rate ?: java.math.BigDecimal.ONE }
+    val markupArs = remember { settingsRepo.getMarkupArs() }
+    val markupUsd = remember { settingsRepo.getMarkupUsd() }
 
     var selectedClient by remember { mutableStateOf(existingOrder?.let { o -> clients.find { c -> c.id == o.clientId } }) }
     var searchQuery by remember { mutableStateOf("") }
@@ -173,7 +181,7 @@ private fun EditOrderView(
     Column(Modifier.fillMaxSize().padding(24.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onCancel) { Icon(Icons.AutoMirrored.Default.ArrowBack, "Volver") }
-            Text(if (existingOrder != null) "Editar Pedido #${existingOrder.id}" else "Nuevo Pedido", style = MaterialTheme.typography.headlineMedium)
+            Text(if (existingOrder != null) "Editar Venta #${existingOrder.id}" else "Nueva Venta", style = MaterialTheme.typography.headlineMedium)
         }
         Spacer(Modifier.height(16.dp))
 
@@ -193,12 +201,12 @@ private fun EditOrderView(
                         items(filteredProducts, key = { p -> p.id }) { product ->
                             Surface(modifier = Modifier.fillMaxWidth(), onClick = {
                                 if (orderItems.none { (p, _, _) -> p.id == product.id }) {
-                                    orderItems = orderItems + Triple(product, 1, product.salePrice)
+                                    orderItems = orderItems + Triple(product, 1, product.suggestedSalePrice(dollarRate, markupArs, markupUsd))
                                 }
                             }) {
                                 Row(Modifier.padding(10.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text("${product.code} — ${product.name}", Modifier.weight(1f))
-                                    Text("$${product.salePrice.toPlainString()} | Stock: ${product.stock}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("$${product.suggestedSalePrice(dollarRate, markupArs, markupUsd).toPlainString()} | Stock: ${product.stock}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
@@ -208,19 +216,23 @@ private fun EditOrderView(
 
             ElevatedCard(Modifier.weight(1f)) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Items del pedido", style = MaterialTheme.typography.titleSmall)
+                    Text("Items dla venta", style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(8.dp))
                     LazyColumn(Modifier.heightIn(max = 250.dp)) {
                         items(orderItems, key = { (p, _, _) -> p.id }) { (product, qty, unitPrice) ->
                             Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("${product.code} — ${product.name}", Modifier.weight(2f))
-                                OutlinedTextField(qty.toString(), { n ->
-                                    val q = n.toIntOrNull() ?: return@OutlinedTextField
-                                    if (q > 0) orderItems = orderItems.map { (p, oq, op) -> if (p.id == product.id) Triple(p, q, op) else Triple(p, oq, op) }
+                                var qtyText by remember(product.id, qty) { mutableStateOf(qty.toString()) }
+                                OutlinedTextField(qtyText, { n ->
+                                    qtyText = n
+                                    val q = n.toIntOrNull()
+                                    if (q != null && q > 0) orderItems = orderItems.map { (p, oq, op) -> if (p.id == product.id) Triple(p, q, op) else Triple(p, oq, op) }
                                 }, modifier = Modifier.width(70.dp), singleLine = true, label = { Text("Cant.") })
-                                OutlinedTextField(unitPrice.toPlainString(), { v ->
-                                    val p = v.toBigDecimalOrNull() ?: return@OutlinedTextField
-                                    if (p >= BigDecimal.ZERO) orderItems = orderItems.map { (prod, oq, op) -> if (prod.id == product.id) Triple(prod, oq, p) else Triple(prod, oq, op) }
+                                var priceText by remember(product.id, unitPrice) { mutableStateOf(unitPrice.toPlainString()) }
+                                OutlinedTextField(priceText, { v ->
+                                    priceText = v
+                                    val p = v.toBigDecimalOrNull()
+                                    if (p != null && p >= BigDecimal.ZERO) orderItems = orderItems.map { (prod, oq, op) -> if (prod.id == product.id) Triple(prod, oq, p) else Triple(prod, oq, op) }
                                 }, modifier = Modifier.width(110.dp), singleLine = true, label = { Text("Precio") })
                                 Text("$${unitPrice.multiply(BigDecimal(qty)).toPlainString()}", Modifier.weight(1f), color = MaterialTheme.colorScheme.primary)
                                 IconButton(onClick = { orderItems = orderItems.filter { (p, _, _) -> p.id != product.id } }) {
@@ -261,14 +273,14 @@ private fun EditOrderView(
                 var showCancelDialog by remember { mutableStateOf(false) }
 
                 FilledTonalButton(onClick = { showConfirmDialog = true }) {
-                    Icon(Icons.Default.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Confirmar Pedido")
+                    Icon(Icons.Default.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Confirmar Venta")
                 }
                 OutlinedButton(onClick = { showCancelDialog = true }, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
-                    Icon(Icons.Default.Cancel, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Cancelar Pedido")
+                    Icon(Icons.Default.Cancel, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Cancelar Venta")
                 }
 
                 if (showConfirmDialog) {
-                    ConfirmDialog("Confirmar pedido", "Confirmar pedido #${existingOrder.id}? Se guardaran los items actuales y quedaran bloqueados.",
+                    ConfirmDialog("Confirmar venta", "Confirmar venta #${existingOrder.id}? Se guardaran los items actuales y quedaran bloqueados.",
                         onConfirm = {
                             try {
                                 val items = orderItems.map { (p, q, price) -> Triple(p.id, q, price) }
@@ -280,7 +292,7 @@ private fun EditOrderView(
                         }, onDismiss = { showConfirmDialog = false })
                 }
                 if (showCancelDialog) {
-                    ConfirmDialog("Cancelar pedido", "Cancelar pedido #${existingOrder.id}?",
+                    ConfirmDialog("Cancelar venta", "Cancelar venta #${existingOrder.id}?",
                         onConfirm = {
                             if (orderService.cancelOrder(existingOrder.id)) onDone()
                             else error = "No se pudo cancelar."
@@ -319,7 +331,7 @@ private fun OrderDetailView(
     Column(Modifier.fillMaxSize().padding(24.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Default.ArrowBack, "Volver") }
-            Text("Pedido #${currentOrder.id}", style = MaterialTheme.typography.headlineMedium)
+            Text("Venta #${currentOrder.id}", style = MaterialTheme.typography.headlineMedium)
         }
         Spacer(Modifier.height(16.dp))
 
@@ -347,7 +359,7 @@ private fun OrderDetailView(
                 }
                 OrderStatus.CONFIRMED -> {
                     FilledTonalButton(onClick = { showDocument = "remito" }) { Icon(Icons.Default.Print, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Ver Remito") }
-                    Button(onClick = { showAssembleDialog = true }) { Icon(Icons.Default.Inventory, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Armar Pedido") }
+                    Button(onClick = { showAssembleDialog = true }) { Icon(Icons.Default.Inventory, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Armar Venta") }
                 }
                 OrderStatus.ASSEMBLED -> {
                     Button(onClick = { showInvoiceAction = true }) { Icon(Icons.Default.Receipt, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Facturar") }
@@ -359,7 +371,7 @@ private fun OrderDetailView(
             }
             if (currentOrder.status != OrderStatus.INVOICED && currentOrder.status != OrderStatus.CANCELLED) {
                 OutlinedButton(onClick = { showCancelDialog = true }, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
-                    Icon(Icons.Default.Cancel, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Cancelar Pedido")
+                    Icon(Icons.Default.Cancel, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Cancelar Venta")
                 }
             }
         }
@@ -390,7 +402,7 @@ private fun OrderDetailView(
     }
 
     if (showConfirmAction) {
-        ConfirmDialog("Confirmar pedido", "Confirmar pedido #${currentOrder.id}? Los items quedan bloqueados.",
+        ConfirmDialog("Confirmar venta", "Confirmar venta #${currentOrder.id}? Los items quedan bloqueados.",
             onConfirm = {
                 if (orderService.confirmOrder(currentOrder.id)) { refreshOrder(); error = null } else error = "No se pudo confirmar."
                 showConfirmAction = false
@@ -412,10 +424,10 @@ private fun OrderDetailView(
 
     if (showCancelDialog) {
         val msg = if (currentOrder.status == OrderStatus.ASSEMBLED)
-            "Cancelar pedido #${currentOrder.id}? Se revertira el stock descontado."
+            "Cancelar venta #${currentOrder.id}? Se revertira el stock descontado."
         else
-            "Cancelar pedido #${currentOrder.id}?"
-        ConfirmDialog("Cancelar pedido", msg,
+            "Cancelar venta #${currentOrder.id}?"
+        ConfirmDialog("Cancelar venta", msg,
             onConfirm = {
                 if (orderService.cancelOrder(currentOrder.id)) { refreshOrder(); error = null }
                 else error = "No se pudo cancelar."
@@ -453,7 +465,7 @@ private fun AssembleDialog(
         mutableStateOf(order.items.associate { it.productId to it.quantity })
     }
 
-    FormDialog("Armar Pedido #${order.id}", onDismiss, onConfirm = { onConfirm(quantities) }, confirmText = "Confirmar Armado") {
+    FormDialog("Armar Venta #${order.id}", onDismiss, onConfirm = { onConfirm(quantities) }, confirmText = "Confirmar Armado") {
         Text("Ajuste las cantidades segun disponibilidad:", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(8.dp))
         order.items.forEach { item ->

@@ -2,6 +2,7 @@ package org.motopartes.desktop.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -53,7 +54,8 @@ fun ClientScreen(clientRepo: ClientRepository) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
         val pagedClients = clients.paginate(currentPage, pageSize)
-        LazyColumn(Modifier.weight(1f)) {
+        val listState = rememberLazyListState()
+        LazyColumn(Modifier.weight(1f), state = listState) {
             items(pagedClients, key = { it.id }) { client ->
                 Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.background, onClick = { editingClient = client; showForm = true }) {
                     Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -74,7 +76,7 @@ fun ClientScreen(clientRepo: ClientRepository) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
-        PaginationBar(currentPage, clients.size, pageSize, { currentPage = it }, { pageSize = it; currentPage = 0 })
+        PaginationBar(currentPage, clients.size, pageSize, { currentPage = it }, { pageSize = it; currentPage = 0 }, listState = listState)
     }
 
     if (showForm) {

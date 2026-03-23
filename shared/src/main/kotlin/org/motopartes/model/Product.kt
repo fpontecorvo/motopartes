@@ -10,7 +10,6 @@ data class Product(
     val description: String = "",
     val purchasePrice: BigDecimal,
     val purchaseCurrency: Currency,
-    val salePrice: BigDecimal,
     val stock: Int = 0
 ) {
     fun purchasePriceInArs(dollarRate: BigDecimal): BigDecimal = when (purchaseCurrency) {
@@ -18,15 +17,11 @@ data class Product(
         Currency.USD -> purchasePrice.multiply(dollarRate)
     }
 
-    companion object {
-        private val MARKUP = BigDecimal("1.30")
-
-        fun defaultSalePrice(purchasePrice: BigDecimal, purchaseCurrency: Currency, dollarRate: BigDecimal): BigDecimal {
-            val costArs = when (purchaseCurrency) {
-                Currency.ARS -> purchasePrice
-                Currency.USD -> purchasePrice.multiply(dollarRate)
-            }
-            return costArs.multiply(MARKUP).setScale(2, RoundingMode.HALF_UP)
+    fun suggestedSalePrice(dollarRate: BigDecimal, markupArs: BigDecimal, markupUsd: BigDecimal): BigDecimal {
+        val markup = when (purchaseCurrency) {
+            Currency.ARS -> markupArs
+            Currency.USD -> markupUsd
         }
+        return purchasePriceInArs(dollarRate).multiply(markup).setScale(2, RoundingMode.HALF_UP)
     }
 }

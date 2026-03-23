@@ -17,7 +17,7 @@ class StockTest {
 
     private fun sampleProduct(stock: Int = 10) = Product(
         code = "STK-001", name = "Filtro", purchasePrice = BigDecimal("500.00"),
-        purchaseCurrency = Currency.ARS, salePrice = BigDecimal("650.00"), stock = stock
+        purchaseCurrency = Currency.ARS, stock = stock
     )
 
     @Test

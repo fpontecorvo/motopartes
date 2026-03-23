@@ -21,5 +21,6 @@ plugins {
 include(":shared")
 include(":desktop")
 include(":api")
+include(":mcp-server")
 
 rootProject.name = "motopartes"

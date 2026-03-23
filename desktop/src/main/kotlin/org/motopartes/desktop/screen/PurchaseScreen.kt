@@ -148,13 +148,17 @@ fun PurchaseScreen(purchaseService: PurchaseService, productRepo: ProductReposit
                                 val label = "${entry.product.code} — ${entry.product.name}".take(60)
                                 Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text(label, Modifier.weight(3f), maxLines = 1, style = MaterialTheme.typography.bodySmall)
-                                    OutlinedTextField(entry.quantity.toString(), { n ->
-                                        val q = n.toIntOrNull() ?: return@OutlinedTextField
-                                        if (q > 0) purchaseItems = purchaseItems.map { e -> if (e.product.id == entry.product.id) e.copy(quantity = q) else e }
+                                    var qtyText by remember(entry.product.id, entry.quantity) { mutableStateOf(entry.quantity.toString()) }
+                                    OutlinedTextField(qtyText, { n ->
+                                        qtyText = n
+                                        val q = n.toIntOrNull()
+                                        if (q != null && q > 0) purchaseItems = purchaseItems.map { e -> if (e.product.id == entry.product.id) e.copy(quantity = q) else e }
                                     }, modifier = Modifier.width(70.dp), singleLine = true, label = { Text("Cant.") })
-                                    OutlinedTextField(entry.unitCost.toPlainString(), { v ->
-                                        val p = v.toBigDecimalOrNull() ?: return@OutlinedTextField
-                                        if (p >= BigDecimal.ZERO) purchaseItems = purchaseItems.map { e -> if (e.product.id == entry.product.id) e.copy(unitCost = p) else e }
+                                    var costText by remember(entry.product.id, entry.unitCost) { mutableStateOf(entry.unitCost.toPlainString()) }
+                                    OutlinedTextField(costText, { v ->
+                                        costText = v
+                                        val p = v.toBigDecimalOrNull()
+                                        if (p != null && p >= BigDecimal.ZERO) purchaseItems = purchaseItems.map { e -> if (e.product.id == entry.product.id) e.copy(unitCost = p) else e }
                                     }, modifier = Modifier.width(110.dp), singleLine = true, label = { Text("P.Unit") })
                                     Text("$${entry.unitCost.multiply(BigDecimal(entry.quantity)).toPlainString()}", Modifier.weight(1f), color = MaterialTheme.colorScheme.primary)
                                     IconButton(onClick = { purchaseItems = purchaseItems.filter { e -> e.product.id != entry.product.id } }) {
@@ -319,15 +323,11 @@ private fun MissingProductsDialog(
                 val selectedCount = entries.count { it.second }
                 Button(onClick = {
                     val products = entries.filter { it.second }.map { (mp, _, currency) ->
-                        val salePrice = if (dollarRate != null || currency == Currency.ARS) {
-                            Product.defaultSalePrice(mp.invoiceUnitCost, currency, dollarRate ?: BigDecimal.ONE)
-                        } else mp.invoiceUnitCost // fallback if no dollar rate for USD
                         Product(
                             code = mp.code,
                             name = mp.name,
                             purchasePrice = mp.invoiceUnitCost,
-                            purchaseCurrency = currency,
-                            salePrice = salePrice
+                            purchaseCurrency = currency
                         )
                     }
                     onCreateAndContinue(products)

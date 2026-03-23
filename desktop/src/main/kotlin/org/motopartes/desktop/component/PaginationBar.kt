@@ -31,8 +31,13 @@ fun PaginationBar(
     pageSize: Int,
     onPageChange: (Int) -> Unit,
     onPageSizeChange: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    listState: androidx.compose.foundation.lazy.LazyListState? = null
 ) {
+    // Scroll to top when page changes
+    LaunchedEffect(currentPage) {
+        listState?.animateScrollToItem(0)
+    }
     val pages = totalPages(totalItems, pageSize)
     val from = if (totalItems == 0) 0 else currentPage * pageSize + 1
     val to = ((currentPage + 1) * pageSize).coerceAtMost(totalItems)
@@ -78,6 +83,36 @@ fun PaginationBar(
                     selected = pageSize == size,
                     onClick = { onPageSizeChange(size); onPageChange(0) },
                     label = { Text("$size") }
+                )
+            }
+            val isCustom = pageSize !in PAGE_SIZE_OPTIONS
+            var showCustomDialog by remember { mutableStateOf(false) }
+            FilterChip(
+                selected = isCustom,
+                onClick = { showCustomDialog = true },
+                label = { Text(if (isCustom) "$pageSize" else "Otro") }
+            )
+            if (showCustomDialog) {
+                var customText by remember { mutableStateOf("") }
+                AlertDialog(
+                    onDismissRequest = { showCustomDialog = false },
+                    title = { Text("Filas por pagina") },
+                    text = {
+                        OutlinedTextField(
+                            customText, { customText = it },
+                            label = { Text("Cantidad") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val v = customText.toIntOrNull()
+                            if (v != null && v > 0) { onPageSizeChange(v); onPageChange(0) }
+                            showCustomDialog = false
+                        }) { Text("Aplicar") }
+                    },
+                    dismissButton = { TextButton(onClick = { showCustomDialog = false }) { Text("Cancelar") } }
                 )
             }
         }

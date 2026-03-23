@@ -2,6 +2,7 @@ package org.motopartes.desktop.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -28,7 +29,7 @@ import kotlin.io.path.Path
 import kotlin.io.path.readText
 
 @Composable
-fun ProductScreen(productRepo: ProductRepository, dollarRateRepo: DollarRateRepository) {
+fun ProductScreen(productRepo: ProductRepository, dollarRateRepo: DollarRateRepository, settingsRepo: org.motopartes.repository.SettingsRepository) {
     var products by remember { mutableStateOf(productRepo.findAll()) }
     var searchQuery by remember { mutableStateOf("") }
     var showForm by remember { mutableStateOf(false) }
@@ -38,6 +39,8 @@ fun ProductScreen(productRepo: ProductRepository, dollarRateRepo: DollarRateRepo
     var currentPage by remember { mutableStateOf(0) }
     var pageSize by remember { mutableStateOf(10) }
     val dollarRate = remember { dollarRateRepo.getLatest()?.rate }
+    val markupArs = remember { settingsRepo.getMarkupArs() }
+    val markupUsd = remember { settingsRepo.getMarkupUsd() }
     val csvImportService = remember { CsvImportService(productRepo, dollarRateRepo) }
     var importResult by remember { mutableStateOf<ImportResult?>(null) }
     var isImporting by remember { mutableStateOf(false) }
@@ -106,22 +109,21 @@ fun ProductScreen(productRepo: ProductRepository, dollarRateRepo: DollarRateRepo
             Text("Nombre", Modifier.weight(2f), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("P. Compra", Modifier.weight(1f), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("Mon.", Modifier.weight(0.5f), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("P. Venta", Modifier.weight(1f), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("Stock", Modifier.weight(0.5f), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("", Modifier.weight(1.2f))
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
         val pagedProducts = products.paginate(currentPage, pageSize)
-        LazyColumn(Modifier.weight(1f)) {
+        val listState = rememberLazyListState()
+        LazyColumn(Modifier.weight(1f), state = listState) {
             items(pagedProducts, key = { it.id }) { product ->
                 Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.background, onClick = { editingProduct = product; showForm = true }) {
                     Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(product.code, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                         Text(product.name, Modifier.weight(2f))
-                        Text(product.purchasePrice.toPlainString(), Modifier.weight(1f))
+                        Text(product.purchasePrice.toPlainString(), Modifier.weight(1f), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
                         Text(product.purchaseCurrency.name, Modifier.weight(0.5f), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("$${product.salePrice.toPlainString()}", Modifier.weight(1f), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
                         Text("${product.stock}", Modifier.weight(0.5f), color = if (product.stock == 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
                         Row(Modifier.weight(1.2f), horizontalArrangement = Arrangement.End) {
                             IconButton(onClick = { editingProduct = product; showForm = true }) { Icon(Icons.Default.Edit, "Editar", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
@@ -133,11 +135,11 @@ fun ProductScreen(productRepo: ProductRepository, dollarRateRepo: DollarRateRepo
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
-        PaginationBar(currentPage, products.size, pageSize, { currentPage = it }, { pageSize = it; currentPage = 0 })
+        PaginationBar(currentPage, products.size, pageSize, { currentPage = it }, { pageSize = it; currentPage = 0 }, listState = listState)
     }
 
     if (showForm) {
-        ProductFormDialog(editingProduct, dollarRate, onDismiss = { showForm = false }, onSave = { p ->
+        ProductFormDialog(editingProduct, onDismiss = { showForm = false }, onSave = { p ->
             if (editingProduct != null) productRepo.update(p) else productRepo.insert(p)
             showForm = false; refresh()
         })
@@ -193,63 +195,35 @@ fun ProductScreen(productRepo: ProductRepository, dollarRateRepo: DollarRateRepo
 }
 
 @Composable
-private fun ProductFormDialog(product: Product?, dollarRate: BigDecimal?, onDismiss: () -> Unit, onSave: (Product) -> Unit) {
+private fun ProductFormDialog(product: Product?, onDismiss: () -> Unit, onSave: (Product) -> Unit) {
     var code by remember { mutableStateOf(product?.code ?: "") }
     var name by remember { mutableStateOf(product?.name ?: "") }
     var description by remember { mutableStateOf(product?.description ?: "") }
     var purchasePriceText by remember { mutableStateOf(product?.purchasePrice?.toPlainString() ?: "") }
     var purchaseCurrency by remember { mutableStateOf(product?.purchaseCurrency ?: Currency.ARS) }
-    var salePriceText by remember { mutableStateOf(product?.salePrice?.toPlainString() ?: "") }
-    var salePriceManuallySet by remember { mutableStateOf(product != null) }
-
-    // Auto-calculate sale price when purchase price or currency changes (only if not manually set)
-    LaunchedEffect(purchasePriceText, purchaseCurrency) {
-        if (salePriceManuallySet) return@LaunchedEffect
-        val pp = purchasePriceText.toBigDecimalOrNull() ?: return@LaunchedEffect
-        if (purchaseCurrency == Currency.USD && dollarRate == null) return@LaunchedEffect
-        val rate = dollarRate ?: BigDecimal.ONE
-        salePriceText = Product.defaultSalePrice(pp, purchaseCurrency, rate).toPlainString()
-    }
-
-    val noDollarForUsd = purchaseCurrency == Currency.USD && dollarRate == null
 
     FormDialog(if (product != null) "Editar Producto" else "Nuevo Producto", onDismiss, onConfirm = {
         val pp = purchasePriceText.toBigDecimalOrNull() ?: return@FormDialog
-        val sp = salePriceText.toBigDecimalOrNull() ?: return@FormDialog
-        if (noDollarForUsd) return@FormDialog
-        onSave(Product(id = product?.id ?: 0, code = code, name = name, description = description, purchasePrice = pp, purchaseCurrency = purchaseCurrency, salePrice = sp, stock = product?.stock ?: 0))
+        onSave(Product(id = product?.id ?: 0, code = code, name = name, description = description, purchasePrice = pp, purchaseCurrency = purchaseCurrency, stock = product?.stock ?: 0))
     }) {
         OutlinedTextField(code, { code = it }, label = { Text("Codigo") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(name, { name = it }, label = { Text("Nombre") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(description, { description = it }, label = { Text("Descripcion") }, modifier = Modifier.fillMaxWidth())
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(purchasePriceText, { purchasePriceText = it; salePriceManuallySet = false }, label = { Text("Precio de compra") }, singleLine = true, modifier = Modifier.weight(1f))
+            OutlinedTextField(purchasePriceText, { purchasePriceText = it }, label = { Text("Precio de compra") }, singleLine = true, modifier = Modifier.weight(1f))
             Column {
                 Text("Moneda compra", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Currency.entries.forEach { c ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = purchaseCurrency == c, onClick = { purchaseCurrency = c; salePriceManuallySet = false })
+                            RadioButton(selected = purchaseCurrency == c, onClick = { purchaseCurrency = c })
                             Text(c.name)
                         }
                     }
                 }
             }
         }
-
-        if (noDollarForUsd) {
-            Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.errorContainer) {
-                Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Configure la cotizacion del dolar para calcular el precio de venta en ARS.", color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-
-        OutlinedTextField(salePriceText, { salePriceText = it; salePriceManuallySet = true }, label = { Text("Precio de venta (ARS)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-            supportingText = { Text("Por defecto: costo + 30%") })
     }
 }
 

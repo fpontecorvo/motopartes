@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Define property for log directory -->
+    <property name="LOG_DIR" value="${MOTOPARTES_LOG_DIR:-logs}"/>
+
+    <!-- Console Appender (STDOUT) -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Rolling File Appender -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/motopartes.log</file>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- Daily rollover with index -->
+            <fileNamePattern>${LOG_DIR}/motopartes.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <!-- Max file size -->
+            <maxFileSize>5MB</maxFileSize>
+            <!-- Max history in days -->
+            <maxHistory>30</maxHistory>
+            <!-- Total size cap -->
+            <totalSizeCap>50MB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- Motopartes Logger (DEBUG) -->
+    <logger name="org.motopartes" level="DEBUG"/>
+
+    <!-- Ktor Logger -->
+    <logger name="io.ktor" level="INFO"/>
+
+    <!-- Jetty Logger -->
+    <logger name="org.eclipse.jetty" level="WARN"/>
+
+    <!-- Netty Logger -->
+    <logger name="io.netty" level="WARN"/>
+
+    <!-- Root Logger -->
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="FILE"/>
+    </root>
+</configuration>

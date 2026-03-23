@@ -21,7 +21,9 @@ data class ChatMessage(val role: String, val content: String) // "user" or "assi
 
 @Composable
 fun ChatScreen(chatService: ChatService) {
-    var messages by remember { mutableStateOf(listOf<ChatMessage>()) }
+    // Messages live in chatService so they persist across screen switches
+    var messagesVersion by remember { mutableStateOf(0) }
+    val messages = chatService.messages
     var inputText by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(!chatService.isConfigured) }
@@ -32,11 +34,13 @@ fun ChatScreen(chatService: ChatService) {
         val text = inputText.trim()
         if (text.isBlank() || isLoading) return
         inputText = ""
-        messages = messages + ChatMessage("user", text)
+        messages.add(ChatMessage("user", text))
+        messagesVersion++
         isLoading = true
         scope.launch {
             val response = chatService.chat(text)
-            messages = messages + ChatMessage("assistant", response)
+            messages.add(ChatMessage("assistant", response))
+            messagesVersion++
             isLoading = false
             listState.animateScrollToItem(messages.size - 1)
         }
@@ -50,6 +54,12 @@ fun ChatScreen(chatService: ChatService) {
             if (chatService.isConfigured) {
                 Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)) {
                     Text("Conectado", Modifier.padding(horizontal = 10.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                }
+                Spacer(Modifier.width(8.dp))
+            }
+            if (messages.isNotEmpty()) {
+                FilledTonalButton(onClick = { chatService.clearChat(); messagesVersion++ }) {
+                    Text("Nuevo Chat")
                 }
                 Spacer(Modifier.width(8.dp))
             }
@@ -74,7 +84,7 @@ fun ChatScreen(chatService: ChatService) {
                 if (messages.isEmpty()) {
                     item {
                         Box(Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("Escribi algo para empezar. Por ejemplo:\n\"Listame los productos con stock bajo\"\n\"Cuanto debe Juan Perez?\"\n\"Crea un pedido para el cliente 1 con 5 del producto 7\"",
+                            Text("Escribi algo para empezar. Por ejemplo:\n\"Listame los productos con stock bajo\"\n\"Cuanto debe Juan Perez?\"\n\"Crea un venta para el cliente 1 con 5 del producto 7\"",
                                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }

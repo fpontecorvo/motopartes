@@ -3,6 +3,7 @@ package org.motopartes.desktop
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.*
@@ -27,13 +28,10 @@ import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import org.motopartes.api.configurePlugins
 import org.motopartes.api.configureRouting
-import org.motopartes.service.BackupService
-import org.motopartes.service.CsvImportService
-import org.motopartes.service.FinanceService
-import org.motopartes.service.OrderService
-import org.motopartes.service.PurchaseService
-import org.motopartes.service.UpdateService
-import org.motopartes.service.VersionInfo
+import org.motopartes.repository.SettingsRepository
+import org.motopartes.config.AppPaths
+import org.motopartes.service.*
+import org.motopartes.desktop.mcp.McpServerManager
 import java.awt.Desktop
 import kotlin.concurrent.thread
 import java.awt.FileDialog
@@ -41,10 +39,34 @@ import java.awt.Frame
 import java.net.URI
 import java.time.LocalDate
 import kotlin.io.path.Path
+import kotlin.io.path.createDirectories
 
 fun main() {
-    DatabaseFactory.init()
+    val splash = SplashScreen()
+    splash.show()
 
+    // Configure logback to write logs to the app data directory
+    splash.updateStatus("Configurando logs...")
+    val logDir = AppPaths.dataDir().resolve("logs")
+    logDir.createDirectories()
+    System.setProperty("MOTOPARTES_LOG_DIR", logDir.toString())
+
+    // Initialize services manager
+    val serviceManager = ServiceManager()
+
+    // Initialize database
+    splash.updateStatus("Inicializando base de datos...")
+    serviceManager.updateStatus(ServiceType.DATABASE, ServiceStatus.STARTING)
+    try {
+        DatabaseFactory.init()
+        serviceManager.updateStatus(ServiceType.DATABASE, ServiceStatus.RUNNING)
+        serviceManager.log(LogLevel.INFO, "Database", "SQLite inicializada en ${AppPaths.databasePath()}")
+    } catch (e: Exception) {
+        serviceManager.updateStatus(ServiceType.DATABASE, ServiceStatus.ERROR, errorMessage = e.message)
+        serviceManager.log(LogLevel.ERROR, "Database", "Error al inicializar: ${e.message}")
+    }
+
+    splash.updateStatus("Cargando servicios...")
     val productRepo = ProductRepository()
     val clientRepo = ClientRepository()
     val supplierRepo = SupplierRepository()
@@ -54,6 +76,7 @@ fun main() {
     val financeService = FinanceService(movementRepo, clientRepo, supplierRepo)
     val orderService = OrderService(orderRepo, productRepo, financeService)
     val purchaseService = PurchaseService(productRepo, financeService, supplierRepo)
+    val settingsRepo = SettingsRepository()
     val backupService = BackupService()
     val updateService = UpdateService(UpdateService.APP_VERSION)
     val csvImportService = CsvImportService(productRepo, dollarRateRepo)
@@ -63,20 +86,49 @@ fun main() {
     val savedKey = ChatSettings.apiKey
     if (savedKey.isNotBlank()) chatService.configure(savedKey, ChatSettings.provider, ChatSettings.model)
 
-    // Start API server in background thread
-    val apiNow = { org.motopartes.api.now() }
-    thread(isDaemon = true, name = "api-server") {
-        embeddedServer(Netty, port = 8080) {
-            configurePlugins()
-            configureRouting(
-                productRepo, clientRepo, supplierRepo, dollarRateRepo,
-                orderRepo, orderService, purchaseService, financeService,
-                backupService, apiNow
-            )
-        }.start(wait = true)
+    // Start API REST server
+    var apiServer: EmbeddedServer<*, *>? = null
+    val startApiServer: () -> Unit = {
+        serviceManager.updateStatus(ServiceType.API_REST, ServiceStatus.STARTING)
+        thread(isDaemon = true, name = "api-server") {
+            try {
+                val apiNow = { org.motopartes.api.now() }
+                apiServer = embeddedServer(Netty, port = 8080) {
+                    configurePlugins()
+                    configureRouting(
+                        productRepo, clientRepo, supplierRepo, dollarRateRepo,
+                        orderRepo, orderService, purchaseService, financeService,
+                        backupService, apiNow
+                    )
+                }
+                serviceManager.updateStatus(ServiceType.API_REST, ServiceStatus.RUNNING, port = 8080)
+                serviceManager.log(LogLevel.INFO, "API", "API REST iniciada en puerto 8080")
+                apiServer!!.start(wait = true)
+            } catch (e: Exception) {
+                serviceManager.updateStatus(ServiceType.API_REST, ServiceStatus.ERROR, errorMessage = e.message)
+                serviceManager.log(LogLevel.ERROR, "API", "Error: ${e.message}")
+            }
+        }
     }
+    splash.updateStatus("Iniciando API REST...")
+    startApiServer()
 
-    val appIcon = AppIconPainter()
+    // Start MCP SSE server
+    splash.updateStatus("Iniciando MCP Server...")
+    val mcpManager = McpServerManager(
+        productRepo, clientRepo, supplierRepo, dollarRateRepo,
+        orderRepo, orderService, financeService, purchaseService, csvImportService, serviceManager
+    )
+    mcpManager.start()
+
+    val appIcon = androidx.compose.ui.graphics.painter.BitmapPainter(
+        androidx.compose.ui.res.loadImageBitmap(
+            Thread.currentThread().contextClassLoader.getResourceAsStream("icon.png")!!
+        )
+    )
+
+    splash.updateStatus("Abriendo interfaz...")
+    splash.close()
 
     application {
         val windowState = rememberWindowState(size = DpSize(1280.dp, 800.dp))
@@ -86,7 +138,31 @@ fun main() {
             state = windowState,
             icon = appIcon
         ) {
-            App(productRepo, clientRepo, supplierRepo, dollarRateRepo, orderRepo, orderService, purchaseService, financeService, backupService, updateService, chatService)
+            App(
+                productRepo, clientRepo, supplierRepo, dollarRateRepo,
+                orderRepo, orderService, purchaseService, financeService,
+                backupService, updateService, chatService, settingsRepo, serviceManager,
+                onRestartService = { serviceType ->
+                    when (serviceType) {
+                        ServiceType.DATABASE -> {
+                            serviceManager.updateStatus(ServiceType.DATABASE, ServiceStatus.STARTING)
+                            try {
+                                DatabaseFactory.init()
+                                serviceManager.updateStatus(ServiceType.DATABASE, ServiceStatus.RUNNING)
+                            } catch (e: Exception) {
+                                serviceManager.updateStatus(ServiceType.DATABASE, ServiceStatus.ERROR, errorMessage = e.message)
+                            }
+                        }
+                        ServiceType.API_REST -> {
+                            try { apiServer?.stop(1000, 2000) } catch (_: Exception) {}
+                            startApiServer()
+                        }
+                        ServiceType.MCP_SERVER -> {
+                            mcpManager.restart()
+                        }
+                    }
+                }
+            )
         }
     }
 }
@@ -103,7 +179,10 @@ fun App(
     financeService: FinanceService,
     backupService: BackupService,
     updateService: UpdateService,
-    chatService: ChatService
+    chatService: ChatService,
+    settingsRepo: SettingsRepository,
+    serviceManager: ServiceManager,
+    onRestartService: (ServiceType) -> Unit = {}
 ) {
     var currentScreen by remember { mutableStateOf(Screen.PRODUCTS) }
     var snackMessage by remember { mutableStateOf<String?>(null) }
@@ -139,25 +218,26 @@ fun App(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Image(
-                            painter = AppIconPainter(),
-                            contentDescription = "Motopartes",
-                            modifier = Modifier.size(32.dp)
-                        )
-                        Spacer(Modifier.width(12.dp))
                         Text(
-                            "MOTOPARTES",
+                            "MOTO",
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.Bold,
-                                letterSpacing = 2.sp
+                                letterSpacing = 1.sp
                             ),
                             color = MaterialTheme.colorScheme.primary
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Icon(
+                            Icons.Default.TwoWheeler, "Moto",
+                            modifier = Modifier.size(28.dp).padding(horizontal = 2.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                         Text(
-                            "Sistema de Gestion",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            "PARTES",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            ),
+                            color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(Modifier.weight(1f))
 
@@ -260,14 +340,15 @@ fun App(
                         color = MaterialTheme.colorScheme.background
                     ) {
                         when (currentScreen) {
-                            Screen.PRODUCTS -> ProductScreen(productRepo, dollarRateRepo)
+                            Screen.PRODUCTS -> ProductScreen(productRepo, dollarRateRepo, settingsRepo)
                             Screen.CLIENTS -> ClientScreen(clientRepo)
-                            Screen.ORDERS -> OrderScreen(orderRepo, orderService, productRepo, clientRepo, dollarRateRepo)
+                            Screen.ORDERS -> OrderScreen(orderRepo, orderService, productRepo, clientRepo, dollarRateRepo, settingsRepo)
                             Screen.PURCHASES -> PurchaseScreen(purchaseService, productRepo, dollarRateRepo)
                             Screen.FINANCE -> FinanceScreen(financeService, clientRepo, supplierRepo)
                             Screen.SUPPLIER -> SupplierScreen(supplierRepo)
-                            Screen.DOLLAR_RATE -> DollarRateScreen(dollarRateRepo)
+                            Screen.DOLLAR_RATE -> DollarRateScreen(dollarRateRepo, settingsRepo)
                             Screen.CHAT -> ChatScreen(chatService)
+                            Screen.SERVICES -> ServiceScreen(serviceManager, onRestartService)
                         }
                     }
                 }
@@ -283,12 +364,12 @@ fun App(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            "Motopartes v1.0",
+                            "Motopartes v${org.motopartes.config.Version.NAME}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
                         Text(
-                            "Sistema de gestion de venta minorista",
+                            "By fpontecorvo",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )

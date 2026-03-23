@@ -20,7 +20,7 @@ class OrderRepositoryTest {
     private fun createClient() = clientRepo.insert(Client(name = "Test Client"))
 
     private fun createProduct(code: String = "P1") = productRepo.insert(
-        Product(code = code, name = "Producto $code", purchasePrice = BigDecimal("1000.00"), purchaseCurrency = Currency.ARS, salePrice = BigDecimal("1300.00"), stock = 10)
+        Product(code = code, name = "Producto $code", purchasePrice = BigDecimal("1000.00"), purchaseCurrency = Currency.ARS, stock = 10)
     )
 
     private fun sampleOrder(clientId: Long, items: List<OrderItem>): Order {

@@ -2,6 +2,7 @@ package org.motopartes.desktop.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Payments
@@ -114,7 +115,8 @@ fun FinanceScreen(financeService: FinanceService, clientRepo: ClientRepository, 
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         val pagedMovements = movements.paginate(currentPage, pageSize)
-        LazyColumn(Modifier.weight(1f)) {
+        val listState = rememberLazyListState()
+        LazyColumn(Modifier.weight(1f), state = listState) {
             if (pagedMovements.isEmpty()) {
                 item {
                     Box(Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
@@ -136,7 +138,7 @@ fun FinanceScreen(financeService: FinanceService, clientRepo: ClientRepository, 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
-        PaginationBar(currentPage, movements.size, pageSize, { currentPage = it }, { pageSize = it; currentPage = 0 })
+        PaginationBar(currentPage, movements.size, pageSize, { currentPage = it }, { pageSize = it; currentPage = 0 }, listState = listState)
     }
 
     if (showClientPayment) {

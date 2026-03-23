@@ -16,7 +16,6 @@ data class CreateProductRequest(
     val description: String = "",
     @Serializable(with = BigDecimalSerializer::class) val purchasePrice: BigDecimal,
     val purchaseCurrency: Currency,
-    @Serializable(with = BigDecimalSerializer::class) val salePrice: BigDecimal,
     val stock: Int = 0
 )
 
@@ -27,7 +26,6 @@ data class UpdateProductRequest(
     val description: String = "",
     @Serializable(with = BigDecimalSerializer::class) val purchasePrice: BigDecimal,
     val purchaseCurrency: Currency,
-    @Serializable(with = BigDecimalSerializer::class) val salePrice: BigDecimal,
     val stock: Int
 )
 
@@ -42,16 +40,15 @@ data class ProductResponse(
     val description: String,
     @Serializable(with = BigDecimalSerializer::class) val purchasePrice: BigDecimal,
     val purchaseCurrency: Currency,
-    @Serializable(with = BigDecimalSerializer::class) val salePrice: BigDecimal,
     val stock: Int
 )
 
-fun Product.toResponse() = ProductResponse(id, code, name, description, purchasePrice, purchaseCurrency, salePrice, stock)
+fun Product.toResponse() = ProductResponse(id, code, name, description, purchasePrice, purchaseCurrency, stock)
 
 fun CreateProductRequest.toDomain() = Product(
     code = code, name = name, description = description,
     purchasePrice = purchasePrice, purchaseCurrency = purchaseCurrency,
-    salePrice = salePrice, stock = stock
+    stock = stock
 )
 
 // ── Clients ──

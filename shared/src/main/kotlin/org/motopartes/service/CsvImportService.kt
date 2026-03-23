@@ -36,21 +36,7 @@ class CsvImportService(
     private val dollarRateRepo: DollarRateRepository
 ) {
 
-    /**
-     * Import products from CSV content.
-     *
-     * Supports two formats:
-     *
-     * 1. Supplier format (auto-detected):
-     *    Header: Articulo, Descripcion, Lista IMP. U$S DÓLAR, Lista NAC. $ PESOS
-     *    - Categories (code without '/') are skipped
-     *    - Currency determined by which price column has a value > 0
-     *
-     * 2. Generic format:
-     *    Header: code/codigo, name/nombre, purchasePrice/precio, purchaseCurrency/moneda, ...
-     */
     fun import(csvContent: String, hasHeader: Boolean = true): ImportResult {
-        // Normalize multiline headers: CSV headers can span lines when quoted
         val normalized = normalizeCsvContent(csvContent)
         val lines = normalized.trimEnd().lines().filter { it.isNotBlank() }
         if (lines.isEmpty()) return ImportResult(0, 0, errors = listOf("Archivo vacio"))
@@ -58,7 +44,6 @@ class CsvImportService(
         val headerLine = if (hasHeader) lines.first() else ""
         val dataLines = if (hasHeader) lines.drop(1) else lines
 
-        // Auto-detect supplier format
         return if (isSupplierFormat(headerLine)) {
             importSupplierFormat(dataLines)
         } else {
@@ -66,19 +51,15 @@ class CsvImportService(
         }
     }
 
-    /** Detect supplier CSV by header keywords */
     private fun isSupplierFormat(header: String): Boolean {
         val h = header.lowercase()
         return h.contains("articulo") && h.contains("descripcion") && (h.contains("u\$s") || h.contains("dólar") || h.contains("dolar"))
     }
 
-    /** Import from supplier format: Articulo, Descripcion, USD price, ARS price */
     private fun importSupplierFormat(dataLines: List<String>): ImportResult {
-        val dollarRate = dollarRateRepo.getLatest()?.rate
-        var created = 0
-        var updated = 0
         var skipped = 0
         val errors = mutableListOf<String>()
+        val productsToUpsert = mutableListOf<Product>()
 
         dataLines.forEachIndexed { idx, line ->
             val rowNum = idx + 2
@@ -88,8 +69,6 @@ class CsvImportService(
                 val name = cols.getOrNull(1)?.trim() ?: return@forEachIndexed
 
                 if (code.isBlank() || name.isBlank()) return@forEachIndexed
-
-                // Skip category rows (code without '/')
                 if (!code.contains("/")) { skipped++; return@forEachIndexed }
 
                 val usdStr = cols.getOrNull(2)?.trim()?.replace(",", ".") ?: "0.00"
@@ -97,58 +76,29 @@ class CsvImportService(
                 val usdPrice = usdStr.toBigDecimalOrNull() ?: BigDecimal.ZERO
                 val arsPrice = arsStr.toBigDecimalOrNull() ?: BigDecimal.ZERO
 
-                // Determine currency and price
                 val (purchasePrice, currency) = when {
                     usdPrice > BigDecimal.ZERO -> usdPrice to Currency.USD
                     arsPrice > BigDecimal.ZERO -> arsPrice to Currency.ARS
-                    else -> { skipped++; return@forEachIndexed } // Both zero, skip
+                    else -> { skipped++; return@forEachIndexed }
                 }
 
-                // Calculate sale price
-                if (currency == Currency.USD && dollarRate == null) {
-                    errors.add("Fila $rowNum: producto USD '$code' pero no hay cotizacion del dolar")
-                    return@forEachIndexed
-                }
-                val salePrice = Product.defaultSalePrice(purchasePrice, currency, dollarRate ?: BigDecimal.ONE)
-
-                val existing = productRepo.findByCode(code)
-                if (existing != null) {
-                    productRepo.update(existing.copy(
-                        name = name,
-                        purchasePrice = purchasePrice,
-                        purchaseCurrency = currency,
-                        salePrice = salePrice
-                    ))
-                    updated++
-                } else {
-                    productRepo.insert(Product(
-                        code = code,
-                        name = name,
-                        purchasePrice = purchasePrice,
-                        purchaseCurrency = currency,
-                        salePrice = salePrice
-                    ))
-                    created++
-                }
+                productsToUpsert.add(Product(code = code, name = name, purchasePrice = purchasePrice, purchaseCurrency = currency))
             } catch (e: Exception) {
                 errors.add("Fila $rowNum: ${e.message}")
             }
         }
 
+        val (created, updated) = productRepo.upsertBatch(productsToUpsert)
         return ImportResult(created, updated, skipped, errors)
     }
 
-    /** Import from generic CSV format with flexible headers */
     private fun importGenericFormat(headerLine: String, dataLines: List<String>, hasHeader: Boolean): ImportResult {
-        val dollarRate = dollarRateRepo.getLatest()?.rate
-
         val headers = if (hasHeader) headerLine.split(",", ";").map { it.trim().lowercase() } else emptyList()
         val colCode = headers.indexOfFirst { it in listOf("code", "codigo", "cod", "articulo") }
         val colName = headers.indexOfFirst { it in listOf("name", "nombre", "descripcion") }
         val colPrice = headers.indexOfFirst { it in listOf("purchaseprice", "precio", "price", "preciocompra", "costo", "cost") }
         val colCurrency = headers.indexOfFirst { it in listOf("purchasecurrency", "moneda", "currency", "mon") }
         val colDescription = headers.indexOfFirst { it in listOf("description", "descripcion", "desc") }
-        val colSalePrice = headers.indexOfFirst { it in listOf("saleprice", "precioventa", "venta") }
         val colStock = headers.indexOfFirst { it in listOf("stock", "cantidad", "qty") }
 
         if (colCode < 0) return ImportResult(0, 0, errors = listOf("Columna 'code' o 'codigo' no encontrada en el header"))
@@ -182,16 +132,6 @@ class CsvImportService(
                 val description = cols.getOrNull(colDescription)?.trim() ?: ""
                 val stock = cols.getOrNull(colStock)?.trim()?.toIntOrNull()
 
-                val salePriceStr = cols.getOrNull(colSalePrice)?.trim()?.replace("$", "")?.replace(",", ".")
-                val salePrice = salePriceStr?.toBigDecimalOrNull()
-                    ?: run {
-                        if (currency == Currency.USD && dollarRate == null) {
-                            errors.add("Fila $rowNum: producto en USD pero no hay cotizacion del dolar configurada")
-                            return@forEachIndexed
-                        }
-                        Product.defaultSalePrice(purchasePrice, currency, dollarRate ?: BigDecimal.ONE)
-                    }
-
                 val existing = productRepo.findByCode(code)
                 if (existing != null) {
                     productRepo.update(existing.copy(
@@ -199,7 +139,6 @@ class CsvImportService(
                         description = description.ifEmpty { existing.description },
                         purchasePrice = purchasePrice,
                         purchaseCurrency = currency,
-                        salePrice = salePrice,
                         stock = stock ?: existing.stock
                     ))
                     updated++
@@ -210,7 +149,6 @@ class CsvImportService(
                         description = description,
                         purchasePrice = purchasePrice,
                         purchaseCurrency = currency,
-                        salePrice = salePrice,
                         stock = stock ?: 0
                     ))
                     created++
@@ -223,15 +161,6 @@ class CsvImportService(
         return ImportResult(created, updated, errors = errors)
     }
 
-    /**
-     * Import purchase invoice from supplier CSV.
-     *
-     * Format: Codigo, Articulo, Cantidad, Precio Unitario, Importe
-     * Prices have format: "$ 3,701.21" (ARS with thousands separator)
-     *
-     * Returns list of PurchaseItems with the actual invoice unit cost (not the catalog price).
-     * Products not found in DB are reported as errors but other items still process.
-     */
     fun importPurchaseInvoice(csvContent: String): PurchaseInvoiceResult {
         val normalized = normalizeCsvContent(csvContent)
         val lines = normalized.trimEnd().lines().filter { it.isNotBlank() }
@@ -273,51 +202,36 @@ class CsvImportService(
         return PurchaseInvoiceResult(items, missing, errors)
     }
 
-    /** Parse Argentine price format: "$ 3,701.21" or "$3701.21" → BigDecimal */
     private fun parseArgentinePrice(raw: String): BigDecimal? {
-        val cleaned = raw
-            .replace("$", "")
-            .replace(" ", "")
-            .trim()
-        // Handle Argentine format: 3,701.21 (comma = thousands, dot = decimal)
-        // or 3.701,21 (dot = thousands, comma = decimal)
+        val cleaned = raw.replace("$", "").replace(" ", "").trim()
         val normalized = if (cleaned.contains('.') && cleaned.contains(',')) {
             if (cleaned.lastIndexOf(',') > cleaned.lastIndexOf('.')) {
-                // Format: 3.701,21 → 3701.21
                 cleaned.replace(".", "").replace(",", ".")
             } else {
-                // Format: 3,701.21 → 3701.21
                 cleaned.replace(",", "")
             }
         } else if (cleaned.contains(',') && !cleaned.contains('.')) {
-            // Could be 3,701 (thousands) or 3,50 (decimal)
             val afterComma = cleaned.substringAfter(',')
-            if (afterComma.length == 3) cleaned.replace(",", "") // thousands
-            else cleaned.replace(",", ".") // decimal
+            if (afterComma.length == 3) cleaned.replace(",", "") else cleaned.replace(",", ".")
         } else {
             cleaned
         }
         return normalized.toBigDecimalOrNull()
     }
 
-    /**
-     * Normalize CSV content: merge multiline quoted headers into single line.
-     * Handles headers like: "Lista IMP.\nU$S DÓLAR"
-     */
     private fun normalizeCsvContent(content: String): String {
         val result = StringBuilder()
         var inQuotes = false
         for (ch in content) {
             when {
                 ch == '"' -> { inQuotes = !inQuotes; result.append(ch) }
-                ch == '\n' && inQuotes -> result.append(' ') // Replace newline inside quotes with space
+                ch == '\n' && inQuotes -> result.append(' ')
                 else -> result.append(ch)
             }
         }
         return result.toString()
     }
 
-    /** Simple CSV line parser that handles quoted fields */
     private fun parseCsvLine(line: String): List<String> {
         val result = mutableListOf<String>()
         var current = StringBuilder()

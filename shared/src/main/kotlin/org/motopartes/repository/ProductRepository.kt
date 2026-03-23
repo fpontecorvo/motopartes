@@ -37,7 +37,6 @@ class ProductRepository {
             it[description] = product.description
             it[purchasePrice] = product.purchasePrice
             it[purchaseCurrency] = product.purchaseCurrency
-            it[salePrice] = product.salePrice
             it[stock] = product.stock
         }
         product.copy(id = id.value)
@@ -50,7 +49,6 @@ class ProductRepository {
             it[description] = product.description
             it[purchasePrice] = product.purchasePrice
             it[purchaseCurrency] = product.purchaseCurrency
-            it[salePrice] = product.salePrice
             it[stock] = product.stock
         } > 0
     }
@@ -68,6 +66,39 @@ class ProductRepository {
         } > 0
     }
 
+    /** Bulk upsert: insert or update products by code in a single transaction */
+    fun upsertBatch(products: List<Product>): Pair<Int, Int> = transaction {
+        val existingByCode = Products.selectAll()
+            .map { it[Products.code] to it[Products.id].value }
+            .toMap()
+        var created = 0
+        var updated = 0
+        for (p in products) {
+            val existingId = existingByCode[p.code]
+            if (existingId != null) {
+                Products.update({ Products.id eq existingId }) {
+                    it[name] = p.name
+                    it[description] = p.description
+                    it[purchasePrice] = p.purchasePrice
+                    it[purchaseCurrency] = p.purchaseCurrency
+                    it[stock] = p.stock
+                }
+                updated++
+            } else {
+                Products.insert {
+                    it[code] = p.code
+                    it[name] = p.name
+                    it[description] = p.description
+                    it[purchasePrice] = p.purchasePrice
+                    it[purchaseCurrency] = p.purchaseCurrency
+                    it[stock] = p.stock
+                }
+                created++
+            }
+        }
+        created to updated
+    }
+
     fun delete(id: Long): Boolean = transaction {
         Products.deleteWhere { Products.id eq id } > 0
     }
@@ -79,7 +110,6 @@ class ProductRepository {
         description = this[Products.description],
         purchasePrice = this[Products.purchasePrice],
         purchaseCurrency = this[Products.purchaseCurrency],
-        salePrice = this[Products.salePrice],
         stock = this[Products.stock]
     )
 }

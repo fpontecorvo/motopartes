@@ -14,7 +14,6 @@ object Products : LongIdTable("products") {
     val description = text("description").default("")
     val purchasePrice = decimal("price", 12, 2)
     val purchaseCurrency = enumerationByName<Currency>("currency", 3)
-    val salePrice = decimal("sale_price", 12, 2).default(java.math.BigDecimal.ZERO)
     val stock = integer("stock").default(0)
 }
 

@@ -16,13 +16,15 @@ dependencies {
     implementation(project(":api"))
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.server.netty)
+    implementation(libs.mcp.kotlin.sdk)
+    implementation(libs.logback.classic)
 }
 
 compose.desktop {
     application {
         mainClass = "org.motopartes.desktop.MainKt"
 
-        jvmArgs("--add-opens", "java.desktop/sun.awt=ALL-UNNAMED")
+        jvmArgs("--add-opens", "java.desktop/sun.awt=ALL-UNNAMED", "--enable-native-access=ALL-UNNAMED")
         buildTypes.release.proguard { isEnabled = false }
 
         nativeDistributions {
@@ -34,17 +36,23 @@ compose.desktop {
             )
 
             packageName = "Motopartes"
-            packageVersion = "1.0.0"
+            packageVersion = project.property("app.version") as String
             description = "Sistema de gestion de venta minorista de motopartes"
             vendor = "Motopartes"
 
+            appResourcesRootDir.set(project.layout.projectDirectory.dir("src/main/resources"))
+
             macOS {
                 bundleID = "org.motopartes.desktop"
+                iconFile.set(project.file("src/main/resources/icon.png"))
             }
 
             windows {
                 menuGroup = "Motopartes"
                 upgradeUuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                iconFile.set(project.file("src/main/resources/icon.png"))
+                perUserInstall = true
+                shortcut = true
             }
 
             linux {

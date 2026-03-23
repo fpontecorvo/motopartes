@@ -87,7 +87,7 @@ desktop/   → UI Compose Desktop, navegación, punto de entrada
 - [ ] Preparar schema DB para fotos de productos (campo path/blob)
 - [x] Backup/restore de la DB (desktop: botones en banner + API: GET/POST endpoints)
 - [x] Check de version + banner de descarga (lee version.json de GitHub, abre releases)
-- [ ] MCP server para conectar chat con la API
+- [x] MCP server (módulo `mcp-server/` con Kotlin SDK, transporte stdio + SSE)
 
 ## Decisiones Técnicas
 - SQLite por simplicidad y portabilidad (archivo único, zero-config)
