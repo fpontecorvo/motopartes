@@ -77,6 +77,7 @@ fun main() {
     val orderService = OrderService(orderRepo, productRepo, financeService)
     val purchaseService = PurchaseService(productRepo, financeService, supplierRepo)
     val settingsRepo = SettingsRepository()
+    settingsRepo.getOrCreateApiKey() // Ensure API key exists on first launch
     val backupService = BackupService()
     val updateService = UpdateService(UpdateService.APP_VERSION)
     val csvImportService = CsvImportService(productRepo, dollarRateRepo)
@@ -98,7 +99,7 @@ fun main() {
                     configureRouting(
                         productRepo, clientRepo, supplierRepo, dollarRateRepo,
                         orderRepo, orderService, purchaseService, financeService,
-                        backupService, apiNow
+                        backupService, settingsRepo, apiNow
                     )
                 }
                 serviceManager.updateStatus(ServiceType.API_REST, ServiceStatus.RUNNING, port = 8080)

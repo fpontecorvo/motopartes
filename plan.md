@@ -89,6 +89,54 @@ desktop/   → UI Compose Desktop, navegación, punto de entrada
 - [x] Check de version + banner de descarga (lee version.json de GitHub, abre releases)
 - [x] MCP server (módulo `mcp-server/` con Kotlin SDK, transporte stdio + SSE)
 
+### Stage 6 — Acceso remoto y app móvil
+
+Objetivo: acceder a la API desde fuera de la red local (Cloudflare Tunnel gratuito)
+y crear una app Android liviana que consuma la misma API/DB.
+
+```
+[Celular] → internet → Cloudflare Tunnel (HTTPS) → cloudflared en PC → localhost:8080 → SQLite
+[Desktop] → localhost:8080 (directo, sin cambios)
+```
+
+#### 6.1 — Autenticación de la API
+- [ ] Agregar setting `api_key` en `AppSettings` (SettingsRepository)
+- [ ] Auto-generar UUID como API key al primer inicio si no existe
+- [ ] Middleware Ktor que valide header `X-API-Key` en cada request
+- [ ] Endpoint `GET /health` público (sin auth) para monitoreo
+- [ ] Bloquear `/backup/restore` desde fuera (solo localhost)
+- [ ] Card "API Key" en pantalla Configuración del desktop (mostrar, copiar, regenerar)
+- [ ] Restringir CORS: reemplazar `anyHost()` por origins configurables
+- [ ] Tests de auth (request sin key → 401, key inválida → 401, key válida → 200)
+
+#### 6.2 — Cloudflare Tunnel
+- [ ] Documentar instalación de `cloudflared` (Windows + macOS)
+- [ ] Script/instrucciones para crear túnel con URL random (gratis, sin dominio)
+- [ ] Instrucciones opcionales para túnel con dominio propio
+- [ ] Mostrar URL del túnel en pantalla Servicios del desktop (si se detecta cloudflared)
+
+#### 6.3 — App móvil: setup y base
+- [ ] Módulo `mobile/` Android (Kotlin + Jetpack Compose + Material 3)
+- [ ] Tema: dark con amber (#FFB74D), mismo look que desktop
+- [ ] Pantalla Config: URL del servidor + API key + botón "Conectar"
+- [ ] Cliente HTTP (Ktor Client) con header `X-API-Key` automático
+- [ ] Reutilizar DTOs de `api/dto/` (copiar o módulo compartido)
+- [ ] Navegación: BottomNavigation con 5 pantallas
+- [ ] Build APK en GitHub Actions (job `build-android` en release.yml)
+- [ ] UpdateService: check de version.json + banner de descarga del APK
+
+#### 6.4 — Pantallas móviles
+- [ ] Productos: búsqueda + lista + detalle (precio, stock)
+- [ ] Ventas: crear pedido rápido, ver pedidos pendientes
+- [ ] Clientes: lista, ver deuda, registrar cobro
+- [ ] Cotización dólar: ver actual, actualizar
+- [ ] Config: URL servidor, API key, estado de conexión
+
+#### 6.5 — Cache offline (opcional, después)
+- [ ] Room DB local para cachear últimos datos consultados
+- [ ] Banner "Offline — datos de hace X minutos" si API no responde
+- [ ] Cola de operaciones de escritura para sincronizar al reconectar
+
 ## Decisiones Técnicas
 - SQLite por simplicidad y portabilidad (archivo único, zero-config)
 - Compose Desktop para UI nativa en JVM
@@ -96,3 +144,6 @@ desktop/   → UI Compose Desktop, navegación, punto de entrada
 - API REST con Ktor para integración con MCP y otros clientes
 - Venta siempre en ARS; cotización dólar almacenada por fecha para trazabilidad
 - Precios: compra (USD/ARS) + venta (siempre ARS, default costo +30%)
+- Acceso remoto via Cloudflare Tunnel (gratis, sin abrir puertos, HTTPS automático)
+- App móvil: Android nativo (Jetpack Compose), cliente REST puro
+- Auth: API Key en header `X-API-Key`, almacenada en AppSettings

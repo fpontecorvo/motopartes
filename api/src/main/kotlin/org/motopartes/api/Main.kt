@@ -28,13 +28,18 @@ fun main() {
     val orderService = OrderService(orderRepo, productRepo, financeService)
     val purchaseService = PurchaseService(productRepo, financeService, supplierRepo)
     val backupService = BackupService()
+    val settingsRepo = SettingsRepository()
+
+    // Ensure API key exists
+    val apiKey = settingsRepo.getOrCreateApiKey()
+    println("API Key: $apiKey")
 
     embeddedServer(Netty, port = 8080) {
         configurePlugins()
         configureRouting(
             productRepo, clientRepo, supplierRepo, dollarRateRepo,
             orderRepo, orderService, purchaseService, financeService,
-            backupService, ::now
+            backupService, settingsRepo, ::now
         )
     }.start(wait = true)
 }

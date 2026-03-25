@@ -6,10 +6,15 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.datetime.LocalDate
@@ -34,6 +39,9 @@ fun DollarRateScreen(dollarRateRepo: DollarRateRepository, settingsRepo: Setting
     var currentMarkupUsd by remember { mutableStateOf(settingsRepo.getMarkupUsd()) }
     var showArsForm by remember { mutableStateOf(false) }
     var showUsdForm by remember { mutableStateOf(false) }
+    var apiKey by remember { mutableStateOf(settingsRepo.getOrCreateApiKey()) }
+    var showRegenerateConfirm by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
 
     Column(Modifier.fillMaxSize().padding(24.dp)) {
         Text("Configuracion", style = MaterialTheme.typography.headlineMedium)
@@ -90,6 +98,43 @@ fun DollarRateScreen(dollarRateRepo: DollarRateRepository, settingsRepo: Setting
                     Spacer(Modifier.height(12.dp))
                     Text("${coefToPercent(currentMarkupUsd)}%", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
                     Text("Productos en dolares", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+
+        // API Key card
+        ElevatedCard(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(20.dp)) {
+                Text("API Key", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Clave de acceso para la app movil y conexiones remotas",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            apiKey,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    FilledTonalIconButton(onClick = {
+                        clipboardManager.setText(AnnotatedString(apiKey))
+                    }) {
+                        Icon(Icons.Default.ContentCopy, "Copiar", Modifier.size(18.dp))
+                    }
+                    FilledTonalIconButton(onClick = { showRegenerateConfirm = true }) {
+                        Icon(Icons.Default.Refresh, "Regenerar", Modifier.size(18.dp))
+                    }
                 }
             }
         }
@@ -163,5 +208,27 @@ fun DollarRateScreen(dollarRateRepo: DollarRateRepository, settingsRepo: Setting
             OutlinedTextField(pctText, { pctText = it }, label = { Text("Porcentaje de ganancia") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                 supportingText = { Text("Ej: 40 = 40% de ganancia sobre el costo") })
         }
+    }
+
+    if (showRegenerateConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRegenerateConfirm = false },
+            title = { Text("Regenerar API Key") },
+            text = { Text("Se generara una nueva clave. La app movil y cualquier conexion remota dejaran de funcionar hasta que configures la nueva clave.\n\n¿Continuar?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val newKey = java.util.UUID.randomUUID().toString()
+                        settingsRepo.setApiKey(newKey)
+                        apiKey = newKey
+                        showRegenerateConfirm = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Regenerar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRegenerateConfirm = false }) { Text("Cancelar") }
+            }
+        )
     }
 }

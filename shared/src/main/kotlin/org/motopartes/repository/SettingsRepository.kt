@@ -28,6 +28,18 @@ class SettingsRepository {
     fun setMarkupArs(value: BigDecimal) = set("markup_ars", value.toPlainString())
     fun setMarkupUsd(value: BigDecimal) = set("markup_usd", value.toPlainString())
 
+    fun getApiKey(): String? = get("api_key")
+
+    fun setApiKey(key: String) = set("api_key", key)
+
+    fun getOrCreateApiKey(): String {
+        val existing = getApiKey()
+        if (existing != null) return existing
+        val newKey = java.util.UUID.randomUUID().toString()
+        setApiKey(newKey)
+        return newKey
+    }
+
     companion object {
         val DEFAULT_MARKUP: BigDecimal = BigDecimal("1.30")
     }
