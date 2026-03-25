@@ -1,7 +1,7 @@
 plugins {
     id("buildsrc.convention.kotlin-jvm")
     alias(libs.plugins.composeMultiplatform)
-    alias(libs.plugins.composeCompiler)
+    kotlin("plugin.compose")
 }
 
 dependencies {

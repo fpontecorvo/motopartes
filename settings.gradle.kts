@@ -22,5 +22,6 @@ include(":shared")
 include(":desktop")
 include(":api")
 include(":mcp-server")
+include(":mobile")
 
 rootProject.name = "motopartes"
