@@ -86,11 +86,11 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
       - name: Build APK
-        run: ./gradlew :mobile:assembleRelease --no-daemon
+        run: ./gradlew :mobile:assembleDebug --no-daemon
       - name: Rename APK
         run: |
           VERSION=$(grep 'app.version' gradle.properties | cut -d= -f2)
-          cp mobile/build/outputs/apk/release/mobile-release-unsigned.apk "motopartes-${VERSION}.apk"
+          cp mobile/build/outputs/apk/debug/mobile-debug.apk "motopartes-${VERSION}.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: android-apk
