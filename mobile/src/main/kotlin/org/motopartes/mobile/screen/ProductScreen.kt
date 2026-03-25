@@ -4,8 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,6 +22,7 @@ fun ProductScreen(api: ApiClient) {
     var products by remember { mutableStateOf<List<ProductResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var stockProduct by remember { mutableStateOf<ProductResponse?>(null) }
     val scope = rememberCoroutineScope()
 
     fun search() {
@@ -44,7 +44,6 @@ fun ProductScreen(api: ApiClient) {
         Text("Productos", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(12.dp))
 
-        // Search bar
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
@@ -77,15 +76,33 @@ fun ProductScreen(api: ApiClient) {
             Spacer(Modifier.height(8.dp))
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(products, key = { it.id }) { product ->
-                    ProductCard(product)
+                    ProductCard(product, onStockTap = { stockProduct = product })
                 }
             }
         }
     }
+
+    stockProduct?.let { product ->
+        StockDialog(
+            product = product,
+            onDismiss = { stockProduct = null },
+            onAdjust = { delta ->
+                scope.launch {
+                    api.adjustStock(product.id, delta).fold(
+                        onSuccess = { updated ->
+                            products = products.map { if (it.id == updated.id) updated else it }
+                            stockProduct = null
+                        },
+                        onFailure = { error = it.message; stockProduct = null }
+                    )
+                }
+            }
+        )
+    }
 }
 
 @Composable
-private fun ProductCard(product: ProductResponse) {
+private fun ProductCard(product: ProductResponse, onStockTap: () -> Unit) {
     ElevatedCard(Modifier.fillMaxWidth()) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(
@@ -120,13 +137,98 @@ private fun ProductCard(product: ProductResponse) {
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Text(
-                    "Stock: ${product.stock}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (product.stock > 0) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.error
-                )
+                Spacer(Modifier.height(4.dp))
+                Surface(
+                    onClick = onStockTap,
+                    shape = MaterialTheme.shapes.small,
+                    color = if (product.stock > 0) MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.errorContainer
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(Icons.Default.Inventory, null, Modifier.size(14.dp))
+                        Text(
+                            "${product.stock}",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
     }
+}
+
+@Composable
+private fun StockDialog(
+    product: ProductResponse,
+    onDismiss: () -> Unit,
+    onAdjust: (Int) -> Unit
+) {
+    var deltaText by remember { mutableStateOf("") }
+    var isAdding by remember { mutableStateOf(true) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Ajustar stock") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "${product.name} (${product.code})",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text("Stock actual: ${product.stock}", style = MaterialTheme.typography.bodyMedium)
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = isAdding,
+                        onClick = { isAdding = true },
+                        label = { Text("Entrada") },
+                        leadingIcon = if (isAdding) {{ Icon(Icons.Default.Add, null, Modifier.size(16.dp)) }} else null
+                    )
+                    FilterChip(
+                        selected = !isAdding,
+                        onClick = { isAdding = false },
+                        label = { Text("Salida") },
+                        leadingIcon = if (!isAdding) {{ Icon(Icons.Default.Remove, null, Modifier.size(16.dp)) }} else null
+                    )
+                }
+
+                OutlinedTextField(
+                    value = deltaText,
+                    onValueChange = { deltaText = it },
+                    label = { Text("Cantidad") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                val delta = deltaText.toIntOrNull()
+                if (delta != null && delta > 0) {
+                    val newStock = product.stock + if (isAdding) delta else -delta
+                    Text(
+                        "Stock resultante: $newStock",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (newStock >= 0) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            val delta = deltaText.toIntOrNull()
+            val actualDelta = if (delta != null && delta > 0) {
+                if (isAdding) delta else -delta
+            } else null
+
+            Button(
+                onClick = { actualDelta?.let { onAdjust(it) } },
+                enabled = actualDelta != null && (product.stock + actualDelta) >= 0
+            ) { Text("Confirmar") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
 }

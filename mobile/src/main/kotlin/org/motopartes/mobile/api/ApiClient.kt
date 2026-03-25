@@ -44,6 +44,14 @@ class ApiClient(
         client.get("$baseUrl/api/v1/products/$id") { auth() }.body()
     }
 
+    suspend fun adjustStock(productId: Long, delta: Int): Result<ProductResponse> = runCatching {
+        client.patch("$baseUrl/api/v1/products/$productId/stock") {
+            auth()
+            contentType(ContentType.Application.Json)
+            setBody(AdjustStockRequest(delta))
+        }.body()
+    }
+
     // Clients
     suspend fun getClients(): Result<List<ClientResponse>> = runCatching {
         client.get("$baseUrl/api/v1/clients") { auth() }.body()

@@ -86,6 +86,11 @@ data class ClientPaymentRequest(
 )
 
 @Serializable
+data class AdjustStockRequest(
+    val delta: Int
+)
+
+@Serializable
 data class ErrorResponse(
     val error: String
 )
