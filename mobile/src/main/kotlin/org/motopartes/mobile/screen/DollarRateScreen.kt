@@ -54,12 +54,6 @@ fun DollarRateScreen(api: ApiClient) {
             // Current rate card
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.AttachMoney, null,
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.height(12.dp))
                     if (current != null) {
                         Text(
                             "$${current!!.rate}",

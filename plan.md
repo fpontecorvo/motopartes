@@ -6,17 +6,21 @@ Un solo proveedor mayorista. Venta exclusivamente en pesos argentinos.
 Productos pueden estar valuados en USD o ARS; se convierten a ARS con cotización dólar configurable.
 
 ## Arquitectura
-- **Tipo:** App de escritorio standalone (sin servidor, sin networking)
-- **UI:** Compose Desktop (JVM)
+- **Tipo:** App de escritorio + API REST embebida + app móvil Android
+- **UI:** Compose Desktop (JVM) + Jetpack Compose (Android)
 - **DB:** SQLite embebida (archivo en disco)
 - **Lenguaje:** Kotlin
 - **Build:** Gradle Kotlin DSL, multi-módulo
-- **Plataforma target:** Windows (desarrollo en Mac)
+- **Plataforma target:** Windows/macOS/Linux (desktop), Android (mobile)
 
 ### Estructura de módulos
 ```
-shared/    → Modelos de dominio, lógica de negocio, acceso a datos (DB)
-desktop/   → UI Compose Desktop, navegación, punto de entrada
+shared/      → Modelos de dominio, lógica de negocio, acceso a datos (DB)
+desktop/     → UI Compose Desktop, navegación, punto de entrada
+api/         → API REST (Ktor + Netty, puerto 8080)
+mobile/      → App Android (Jetpack Compose), cliente REST
+mcp-server/  → MCP server (stdio + SSE)
+buildSrc/    → Convention plugins (kotlin-jvm, JDK 25)
 ```
 
 ### Persistencia
@@ -89,7 +93,7 @@ desktop/   → UI Compose Desktop, navegación, punto de entrada
 - [x] Check de version + banner de descarga (lee version.json de GitHub, abre releases)
 - [x] MCP server (módulo `mcp-server/` con Kotlin SDK, transporte stdio + SSE)
 
-### Stage 6 — Acceso remoto y app móvil
+### Stage 6 — Acceso remoto y app móvil (parcial)
 
 Objetivo: acceder a la API desde fuera de la red local (Cloudflare Tunnel gratuito)
 y crear una app Android liviana que consuma la misma API/DB.
@@ -99,15 +103,17 @@ y crear una app Android liviana que consuma la misma API/DB.
 [Desktop] → localhost:8080 (directo, sin cambios)
 ```
 
-#### 6.1 — Autenticación de la API
-- [ ] Agregar setting `api_key` en `AppSettings` (SettingsRepository)
-- [ ] Auto-generar UUID como API key al primer inicio si no existe
-- [ ] Middleware Ktor que valide header `X-API-Key` en cada request
-- [ ] Endpoint `GET /health` público (sin auth) para monitoreo
+#### 6.1 — Autenticación de la API ✅
+- [x] Agregar setting `api_key` en `AppSettings` (SettingsRepository)
+- [x] Auto-generar UUID como API key al primer inicio si no existe
+- [x] Middleware Ktor que valide header `X-API-Key` en cada request
+- [x] Endpoint `GET /health` público (sin auth) para monitoreo
+- [x] Bypass localhost (desktop no necesita key)
+- [x] Card "API Key" en pantalla Configuración del desktop (mostrar, copiar, regenerar)
+- [x] CORS: permitir header `X-API-Key`
+- [x] Tests de auth (request sin key → 401, key inválida → 401, key válida → 200, health → 200)
 - [ ] Bloquear `/backup/restore` desde fuera (solo localhost)
-- [ ] Card "API Key" en pantalla Configuración del desktop (mostrar, copiar, regenerar)
 - [ ] Restringir CORS: reemplazar `anyHost()` por origins configurables
-- [ ] Tests de auth (request sin key → 401, key inválida → 401, key válida → 200)
 
 #### 6.2 — Cloudflare Tunnel
 - [ ] Documentar instalación de `cloudflared` (Windows + macOS)
@@ -115,27 +121,148 @@ y crear una app Android liviana que consuma la misma API/DB.
 - [ ] Instrucciones opcionales para túnel con dominio propio
 - [ ] Mostrar URL del túnel en pantalla Servicios del desktop (si se detecta cloudflared)
 
-#### 6.3 — App móvil: setup y base
-- [ ] Módulo `mobile/` Android (Kotlin + Jetpack Compose + Material 3)
-- [ ] Tema: dark con amber (#FFB74D), mismo look que desktop
-- [ ] Pantalla Config: URL del servidor + API key + botón "Conectar"
-- [ ] Cliente HTTP (Ktor Client) con header `X-API-Key` automático
-- [ ] Reutilizar DTOs de `api/dto/` (copiar o módulo compartido)
-- [ ] Navegación: BottomNavigation con 5 pantallas
-- [ ] Build APK en GitHub Actions (job `build-android` en release.yml)
+#### 6.3 — App móvil: setup y base ✅
+- [x] Módulo `mobile/` Android (Kotlin + Jetpack Compose + Material 3)
+- [x] Tema: dark con amber (#FFB74D), mismo look que desktop
+- [x] Pantalla Config: URL del servidor + API key + botón "Conectar"
+- [x] Cliente HTTP (Ktor Client) con header `X-API-Key` automático
+- [x] DTOs propios en mobile (mirror de api/dto, sin dependencia de shared)
+- [x] Navegación: BottomNavigation con 5 pantallas
+- [x] Build APK en GitHub Actions (job `build-android` en release.yml)
+- [x] DataStore Preferences para persistir conexión
 - [ ] UpdateService: check de version.json + banner de descarga del APK
 
-#### 6.4 — Pantallas móviles
-- [ ] Productos: búsqueda + lista + detalle (precio, stock)
-- [ ] Ventas: crear pedido rápido, ver pedidos pendientes
-- [ ] Clientes: lista, ver deuda, registrar cobro
-- [ ] Cotización dólar: ver actual, actualizar
-- [ ] Config: URL servidor, API key, estado de conexión
+#### 6.4 — Pantallas móviles ✅
+- [x] Productos: búsqueda + lista + detalle (precio, stock) + ajuste de stock
+- [x] Ventas: ver pedidos con filtro por estado
+- [x] Clientes: lista, búsqueda, ver deuda, registrar cobro
+- [x] Cotización dólar: ver actual, actualizar
+- [x] Config: URL servidor, API key, estado de conexión
+- [ ] Ventas: crear pedido rápido desde el móvil
 
 #### 6.5 — Cache offline (opcional, después)
 - [ ] Room DB local para cachear últimos datos consultados
 - [ ] Banner "Offline — datos de hace X minutos" si API no responde
 - [ ] Cola de operaciones de escritura para sincronizar al reconectar
+
+### Stage 7 — Integración WhatsApp (semi-automática)
+
+Objetivo: recibir mensajes de WhatsApp de clientes, generar respuestas sugeridas
+con IA (Gemini + MCP tools), y enviarlas solo con aprobación manual.
+
+```
+[Cliente WhatsApp] → Meta Cloud API → Webhook → API Motopartes → DB
+    → Gemini genera sugerencia → Pantalla "Mensajes" → Revisás → Enviar/Editar/Descartar
+```
+
+#### 7.1 — Schema y modelo de datos
+- [ ] Tabla `whatsapp_chats`: id, clientId (nullable), phoneNumber, name, lastMessageAt
+- [ ] Tabla `whatsapp_messages`: id, chatId, direction (IN/OUT), content, audioUrl,
+      transcription, suggestedReply, replyStatus (PENDING/SENT/EDITED/DISCARDED), timestamps
+- [ ] Repository + Service en `shared/`
+- [ ] Matcheo automático de phoneNumber con Client.phone existente
+- [ ] Si no matchea, crear chat sin cliente vinculado (se puede vincular después)
+
+#### 7.2 — WhatsApp Business Cloud API
+- [ ] Crear cuenta Meta Business + app WhatsApp Business
+- [ ] Configurar webhook URL (via Cloudflare Tunnel): POST /api/v1/whatsapp/webhook
+- [ ] Verificación del webhook (challenge de Meta)
+- [ ] Recibir mensajes de texto: parsear, guardar en DB, matchear cliente
+- [ ] Recibir mensajes de audio: descargar media, transcribir, guardar
+- [ ] Enviar mensajes: POST a la API de Meta con el texto aprobado
+- [ ] Guardar tokens (access token, phone number ID) en AppSettings
+
+#### 7.3 — Transcripción de audio
+- [ ] Whisper API (OpenAI cloud) — ~$0.006/min, simple, buena calidad en español
+- [ ] Alternativa: whisper.cpp local (gratis, pero más setup)
+- [ ] Descargar audio del webhook de Meta → transcribir → guardar texto en message.transcription
+
+#### 7.4 — Generación de respuestas sugeridas
+- [ ] Al recibir mensaje, enviar al pipeline Gemini existente con contexto:
+      - Últimos N mensajes del hilo (para entender "dale mandame 2")
+      - Datos del cliente (nombre, deuda, pedidos recientes)
+      - System prompt orientado a vendedor de motopartes
+- [ ] Gemini usa MCP tools para consultar stock, precios, crear pedidos
+- [ ] Guardar sugerencia en message.suggestedReply con status PENDING
+- [ ] Si la IA detecta intención de pedido, armar el pedido pero NO confirmarlo
+      (queda en estado CREATED hasta aprobación manual)
+
+#### 7.5 — Pantalla "Mensajes" en Desktop
+- [ ] Panel izquierdo: lista de chats ordenados por último mensaje
+      - Badge con cantidad de mensajes pendientes por chat
+      - Indicador de cliente vinculado / no vinculado
+- [ ] Panel derecho: hilo de conversación del chat seleccionado
+      - Mensajes entrantes (texto y/o transcripción de audio)
+      - Respuesta sugerida con botones: [Enviar] [Editar] [Descartar]
+      - Mensajes enviados (confirmados)
+- [ ] Botón para vincular chat con cliente existente si no se matcheó
+- [ ] Notificación visual: badge en NavigationRail "Mensajes (3)"
+
+#### 7.6 — Pantalla "Mensajes" en Mobile
+- [ ] Lista de chats con badge de pendientes
+- [ ] Detalle de chat con mismo flujo: ver sugerencia → aprobar/editar/descartar
+- [ ] Push notification al recibir mensaje nuevo (Firebase Cloud Messaging)
+
+#### 7.7 — Configuración
+- [ ] Card "WhatsApp" en pantalla Configuración del desktop:
+      - Access Token de Meta
+      - Phone Number ID
+      - Toggle activar/desactivar
+      - Estado de conexión (webhook activo/inactivo)
+- [ ] Card "Whisper" en configuración:
+      - API Key de OpenAI (para transcripción)
+      - O toggle para usar whisper.cpp local
+
+### Stage 8 — Campañas y engagement de clientes
+
+Objetivo: usar el historial de ventas para generar mensajes proactivos a clientes
+que aumenten la facturación. Mensajes revisados manualmente antes de enviar (misma
+mecánica que Stage 7). Canal principal: WhatsApp.
+
+#### 8.1 — Schema y modelo de datos
+- [ ] Tabla `product_categories`: id, name, restockCycleDays (ej: "Frenos", 180 días)
+- [ ] Campo `categoryId` en Products (o inferencia automática desde código/nombre)
+- [ ] Tabla `campaign_rules`: id, type (RESTOCK/PRICE_ALERT/CROSS_SELL/INACTIVE/BACK_IN_STOCK/LOYALTY),
+      enabled, params (JSON: días, %, categoría, etc.)
+- [ ] Tabla `campaign_messages`: id, ruleId, clientId, productId, type, text,
+      status (PENDING/SENT/EDITED/DISCARDED), createdAt, sentAt
+- [ ] Repository + Service en `shared/`
+
+#### 8.2 — Motor de campañas (CampaignService)
+- [ ] **Recompra de consumibles**: detectar compras pasadas de productos con ciclo de
+      reposición vencido, generar recordatorio con precio y stock actual
+- [ ] **Alerta de suba de precio**: al importar CSV de precios, comparar pre/post,
+      notificar a clientes que compraron productos que subieron
+- [ ] **Stock repuesto (back in stock)**: cuando un producto pasa de stock=0 a stock>0,
+      avisar a clientes que lo compraron antes
+- [ ] **Cross-selling por modelo de moto**: extraer modelo del nombre de productos
+      comprados, sugerir otros productos compatibles con el mismo modelo
+- [ ] **Clientes inactivos**: clientes sin compras en los últimos N días configurables
+- [ ] **Fidelidad/volumen**: clientes que superan X monto acumulado en el mes,
+      ofrecer % de descuento en próximo pedido
+- [ ] Generación de texto con Gemini: recibe datos del cliente + producto + regla,
+      genera mensaje natural en español argentino
+- [ ] Ejecución manual (botón "Generar campañas") o automática (cron configurable)
+
+#### 8.3 — Pantalla "Campañas" en Desktop
+- [ ] Dashboard: resumen por tipo de campaña (cuántos mensajes pendientes, enviados, conversiones)
+- [ ] Lista de mensajes agrupados por tipo o por cliente
+- [ ] Preview del mensaje con datos reales (nombre, producto, precio, stock)
+- [ ] Acciones: [Enviar por WhatsApp] [Editar] [Descartar]
+- [ ] Configuración de reglas: activar/desactivar cada tipo, ajustar parámetros
+      (días de ciclo, % de descuento, umbral de inactividad)
+- [ ] Métricas: tasa de conversión (mensajes enviados → pedidos generados)
+
+#### 8.4 — Pantalla "Campañas" en Mobile
+- [ ] Vista simplificada de mensajes pendientes con acciones rápidas
+- [ ] Notificación cuando hay nuevas sugerencias de campaña
+
+#### 8.5 — Integración con WhatsApp (requiere Stage 7)
+- [ ] Mensajes de campaña aparecen en la pantalla "Mensajes" como salientes pendientes
+- [ ] Al enviar, inicia un hilo de WhatsApp con el cliente
+- [ ] Si el cliente responde, entra al flujo normal de chat con IA (Stage 7)
+- [ ] Tracking: si el cliente hace un pedido dentro de X días de recibir el mensaje,
+      se cuenta como conversión de esa campaña
 
 ## Decisiones Técnicas
 - SQLite por simplicidad y portabilidad (archivo único, zero-config)
@@ -147,3 +274,8 @@ y crear una app Android liviana que consuma la misma API/DB.
 - Acceso remoto via Cloudflare Tunnel (gratis, sin abrir puertos, HTTPS automático)
 - App móvil: Android nativo (Jetpack Compose), cliente REST puro
 - Auth: API Key en header `X-API-Key`, almacenada en AppSettings
+- WhatsApp: integración semi-automática (IA sugiere, humano aprueba) via Meta Cloud API
+- Chats persistentes por cliente con contexto para la IA
+- Audio: Whisper API para transcripción de audios de WhatsApp
+- Campañas: motor de reglas configurable, mensajes generados con IA, aprobación manual
+- Engagement basado en datos: ciclos de recompra, alertas de precio, cross-sell por modelo
